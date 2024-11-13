@@ -25,7 +25,7 @@ for link in url_list:
 #
 # # Generate socratic questions from a line within knowledge
 # n = 5
-# socratic_questions = qt.generate_socratic_questions(lines[n])
+# socratic_questions = qt.openai_gen_soc_questions(lines[n])
 #
 # # Save socratic questions in text file
 # with open("../queries/socratic_questions.txt", "w", encoding="utf-8") as output_file:

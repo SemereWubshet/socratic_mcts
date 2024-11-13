@@ -6,4 +6,4 @@ if __name__ == "__main__":
 
     response = client.chat(model="llama3.1", messages=[{"role": "user", "content": "Why is the sky blue?"}])
 
-    print(response["message"]["content"])
+    print(type(response["message"]["content"]))
