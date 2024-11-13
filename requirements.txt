@@ -1,2 +1,4 @@
 ollama==0.3.3
 openai
+bs4
+requests
