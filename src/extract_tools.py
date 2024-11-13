@@ -3,7 +3,7 @@ import re
 from bs4 import BeautifulSoup
 
 def extract_knowledge(link):
-    response = requests.get(url)
+    response = requests.get(link)
     soup = BeautifulSoup(response.text, 'html.parser')
 
     text_list = []
@@ -15,4 +15,3 @@ def extract_knowledge(link):
     knowledge = '\n'.join(text_list)
     return knowledge
 
-url = "https://en.wikipedia.org/wiki/Fish"
