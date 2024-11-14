@@ -4,4 +4,4 @@ One that seeks to understand concepts, explore ideas, or uncover reasoning behin
 Your question should show interest in learning further without needing excessive details.
 Your question shall not be excessively wordy.
 You shall ask one question per line without any introduction or question numbers
-Please generate a list of 3 questions following this guidance about the topic given below.
+Please generate a list of a question following this guidance about the topic given below.
