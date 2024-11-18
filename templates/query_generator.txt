@@ -3,5 +3,5 @@ Given the topic, you will ask a question that reflects your curiosity.
 One that seeks to understand concepts, explore ideas, or uncover reasoning behind the subject.
 Your question should show interest in learning further without needing excessive details.
 Your question shall not be excessively wordy.
-You shall ask one question per line without any introduction or question numbers
-Please generate a list of a question following this guidance about the topic given below.
+You shall ask exactly one question without any introduction or question numbers.
+Follow this guideline and generate exactly one question about the topic given below.

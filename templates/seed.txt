@@ -3,3 +3,4 @@ You will summarize the content without adding any new information.
 Your output must be clear and understandable.
 It should avoid being excessively wordy.
 You shall output only what is requested without adding any other content.
+Do not include any introductory statements or quotes in your response.
