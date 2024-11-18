@@ -80,10 +80,8 @@ def split_into_chunks(text, chunk_size):
 
 def pipeline(input_name:TextIO, output_name:TextIO) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
-    # with open(input_name, 'r') as f:
-    #     contents = f.read()
     contents = input_name.read()
-    text_chunks = split_into_chunks(contents, 1000)
+    text_chunks = split_into_chunks(contents, chunk_size)
 
     exchanges = []
     results = []
@@ -96,6 +94,7 @@ def pipeline(input_name:TextIO, output_name:TextIO) -> None:
     json.dump(exchanges_dump, args.o, indent=4)
     args.o.close()
 
+    # Save the results somehow as well!
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -103,6 +102,9 @@ if __name__ == "__main__":
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
 
     # Depth of socratic conversation
-    depth = 5
+    depth = 2
+
+    # Chunk size of splits in input file
+    chunk_size = 50000
     args = parser.parse_args()
     pipeline(args.i, args.o)
