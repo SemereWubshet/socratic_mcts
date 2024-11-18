@@ -1,11 +1,13 @@
 import argparse
 import json
 import pathlib
+import query_tools as qt
 
 
 def gen_seed_topic(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
-    return ""
+    seed_topic = qt.ollama_gen_seed(text_chunk)
+    return seed_topic
 
 
 class ChatHistory:
@@ -48,7 +50,7 @@ def split_into_chunks(text, chunk_size):
     # Split text into chunks of size chunk_size
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
-def pipeline(output_name:pathlib.Path, input_name:pathlib.Path) -> None:
+def pipeline(input_name:pathlib.Path, output_name:pathlib.Path) -> None:
     with open(input_name, 'r') as f:
         contents = f.read()
     text_chunks = split_into_chunks(contents, 1000)
@@ -62,10 +64,12 @@ def pipeline(output_name:pathlib.Path, input_name:pathlib.Path) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-i', required=True, help='', type=argparse.FileType('r'))
-    parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
-
-    args = parser.parse_args()
-
-    pipeline(args.o, args.i)
+    seedy = gen_seed_topic("The argparse module in Python is used to handle command-line arguments. It allows developers to define the arguments their program accepts and automatically parses and validates them when the program is run. This makes it easier to write user-friendly command-line interfaces.")
+    print(seedy)
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('-i', required=True, help='', type=argparse.FileType('r'))
+    # parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
+    #
+    # args = parser.parse_args()
+    #
+    # pipeline(args.i, args.o)

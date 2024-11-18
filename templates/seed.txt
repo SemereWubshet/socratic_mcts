@@ -1,0 +1,5 @@
+Given the text below, you shall generate a seed topic.
+You will summarize the content without adding any new information.
+Your output must be clear and understandable.
+It should avoid being excessively wordy.
+You shall output only what is requested without adding any other content.
