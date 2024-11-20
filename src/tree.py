@@ -61,24 +61,23 @@ def judge(seed:str, text_chunk:str, history:ChatHistory) -> bool:
 
 def generate_exchanges(seed, history:ChatHistory, iter:int, depth:int) -> list:
     """Generate iter Socratic responses by the teacher"""
-    if depth == 0: return [0];
+    if depth == 0: return [];
+
     student_query = student(seed, history)
     history.add_student(student_query) # Student response
 
-    histories = []
+    exchanges = []
 
     for _ in range(iter): # Multiple teacher responses
         new_history = copy.deepcopy(history)
+
         teacher_query = teacher(new_history)
-
         new_history.add_teacher(teacher_query)
+
         item_histories = generate_exchanges(seed, new_history, iter, depth - 1)
-        histories.append(new_history)
+        exchanges.append({'history': new_history, 'children': item_histories})
 
-    for item in histories:
-        item_histories = generate_exchanges(seed, item, iter, depth - 1)
-
-    return histories
+    return exchanges
 
 # def generate_tree(tree_depth:int, tree_width:int, text_chunk:str) -> list:
 #     seed = gen_seed_topic(text_chunk)
@@ -118,4 +117,7 @@ if __name__ == "__main__":
     # Chunk size of splits in input file
     chunk_size = 50000
     args = parser.parse_args()
-    pipeline(args.i, args.o)
+    history = ChatHistory()
+    exchanges = generate_exchanges("Why is the sky blue", history, 2, 2)
+
+    # pipeline(args.i, args.o)
