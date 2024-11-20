@@ -85,3 +85,37 @@ print('hello')
         }
     ]
 ]
+
+
+
+
+
+class ChatHistory:
+    def __init__(self, a):
+        self.a = a
+    def add_student(self, b):
+        self.b = b
+
+
+class ChatHistoryTree:
+
+    def __init__(self, seed_question):
+        self.root = ChatHistory("Groot")  # The root ChatHistory object
+        self.root.add_student(seed_question)  # Seed question added to root
+        self.tree = {}  # A dictionary of node paths and ChatHistory
+        self.tree[(1,)] = self.root
+
+    def add_child(self, parent_path, chat_history):
+        """Add a child to the tree under the parent node specified by parent_path."""
+        child_path = parent_path (5,) # Path for the new child
+        self.tree[child_path] = chat_history  # Store child in nodes dictionary
+
+    def get_node(self, path):
+        """Retrieve a ChatHistory node by its path."""
+        return self.tree[path]
+
+j = ChatHistoryTree("Studenting")
+kk = ChatHistory("I'm kk")
+j.add_child((0,), kk)
+x = j.get_node((5,))
+print(x.a)
