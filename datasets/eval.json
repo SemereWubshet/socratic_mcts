@@ -1,0 +1,12 @@
+[
+    [
+        {
+            "role": "student",
+            "query": "How do the symbolic significance of fish in various religions and cultures compare to their representation in modern art and pop culture, such as in movies and books?"
+        },
+        {
+            "role": "teacher",
+            "query": "What qualities might you think are common among the symbolic representations of fish across different cultures, if any? And how might those similarities or differences influence our understanding of these symbols in a contemporary context?"
+        }
+    ]
+]

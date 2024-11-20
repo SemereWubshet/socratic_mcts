@@ -59,7 +59,7 @@ def judge(seed:str, text_chunk:str, history:ChatHistory) -> bool:
     judge_response = qt.ollama_judge(seed, text_chunk, str(history))
     return judge_response
 
-def generate_exchanges(seed:str, history:ChatHistory, tree_width:int, tree_depth:int) -> list:
+def generate_exchanges(seed:str, text_chunk:str, history:ChatHistory, tree_width:int, tree_depth:int) -> list:
     """Generate iter Socratic responses by the teacher"""
     if tree_depth == 0:
         return []
@@ -73,10 +73,14 @@ def generate_exchanges(seed:str, history:ChatHistory, tree_width:int, tree_depth
 
         teacher_query = teacher(new_history)  # Teacher response
         new_history.add_teacher(teacher_query)
-        tree_list.append(new_history)
+        result = judge(seed, text_chunk, new_history) # Judge verdict
 
-        item_histories = generate_exchanges(seed, new_history, tree_width, tree_depth - 1)
-        # exchanges.append({'history': new_history, 'children': item_histories}) # Nested dictionary
+        # Additional to global variables
+        tree_list.append(new_history)
+        results_list.append(result)
+
+        item_histories = generate_exchanges(seed, text_chunk, new_history, tree_width, tree_depth - 1)
+        exchanges.append({'history': new_history, 'result': result, 'children': item_histories}) # Nested dictionary
 
     return exchanges
 
@@ -89,31 +93,33 @@ def pipeline(input_name:TextIO, output_name:TextIO, tree_width:int, tree_depth:i
     """Assemble tools to build a Socratic pedagogical dialogue"""
     contents = input_name.read()
     text_chunks = split_into_chunks(contents, chunk_size)
-
+    master_collection = []
     for text_chunk in text_chunks:
         seed = gen_seed_topic(text_chunk)
         history = ChatHistory()
-        tree_dict = generate_exchanges(seed, history, tree_width, tree_depth)
+        tree_dict = generate_exchanges(seed, text_chunk, history, tree_width, tree_depth)
+        master_collection.append(tree_dict)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', required=True, help='', type=argparse.FileType('r'))
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
-    # parser.add_argument('-tree_width', required=True, help='', type=int)
-    # parser.add_argument('-tree_depth', required=True, help='', type=int)
-    # parser.add_argument('-chunk_size', required=True, help='', type=int)
+
     args = parser.parse_args()
 
     # Pipeline parameters
     tree_width = 1 # Width of  conversation tree
     tree_depth = 1 # Depth of conversation tree
-    chunk_size = 40000 # # Chunk size of splits in the input file
+    chunk_size = 80000 # Chunk size of splits in the input file
 
     tree_list = [] # Global list of conversations
+    results_list = [] # Global list of conversations
     pipeline(args.i, args.o, tree_width, tree_depth)
 
     tree_dump = [history.get_history() for history in tree_list]
     print(tree_dump)
     json.dump(tree_dump, args.o, indent=4)
 
-    # pipeline(args.i, args.o)
+    for result in results_list:
+        with open('datasets/' + 'results.txt', 'w') as f:
+            f.write("\n ===== " + result)

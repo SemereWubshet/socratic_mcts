@@ -94,6 +94,10 @@ def pipeline(input_name:TextIO, output_name:TextIO) -> None:
     json.dump(exchanges_dump, args.o, indent=4)
     args.o.close()
 
+    for result in results:
+        with open('datasets/' + 'results_val.txt', 'w') as f:
+            f.write("\n ===== " + result)
+
     # Save the results somehow as well!
 
 if __name__ == "__main__":
@@ -102,9 +106,9 @@ if __name__ == "__main__":
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
 
     # Depth of socratic conversation
-    depth = 2
+    depth = 1
 
     # Chunk size of splits in input file
-    chunk_size = 50000
+    chunk_size = 100000
     args = parser.parse_args()
     pipeline(args.i, args.o)
