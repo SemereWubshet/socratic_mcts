@@ -59,21 +59,21 @@ def judge(seed:str, text_chunk:str, history:ChatHistory) -> bool:
     judge_response = qt.ollama_judge(seed, text_chunk, str(history))
     return judge_response
 
-def generate_exchanges(seed, root:ChatHistory, tree_width:int, tree_depth:int) -> list:
+def generate_exchanges(seed:str, history:ChatHistory, tree_width:int, tree_depth:int) -> list:
     """Generate iter Socratic responses by the teacher"""
     if tree_depth == 0:
         return []
 
-    student_query = student(seed, root)
-    root.add_student(student_query) # Student response
+    student_query = student(seed, history)
 
     exchanges = []
     for _ in range(tree_width): # Multiple teacher responses
-        new_history = copy.deepcopy(root)
+        new_history = copy.deepcopy(history)
+        new_history.add_student(student_query)  # Student response
 
-        teacher_query = teacher(new_history)
+        teacher_query = teacher(new_history)  # Teacher response
         new_history.add_teacher(teacher_query)
-        histories_list.append(new_history)
+        tree_list.append(new_history)
 
         item_histories = generate_exchanges(seed, new_history, tree_width, tree_depth - 1)
         # exchanges.append({'history': new_history, 'children': item_histories}) # Nested dictionary
@@ -85,35 +85,35 @@ def split_into_chunks(text, chunk_size):
     # Split text into chunks of size chunk_size
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
-def pipeline(input_name:TextIO, output_name:TextIO) -> None:
+def pipeline(input_name:TextIO, output_name:TextIO, tree_width:int, tree_depth:int) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
     contents = input_name.read()
     text_chunks = split_into_chunks(contents, chunk_size)
 
     for text_chunk in text_chunks:
-        exchanges = generate_exchanges()
-
-    # Save the results somehow as well!
+        seed = gen_seed_topic(text_chunk)
+        history = ChatHistory()
+        tree_dict = generate_exchanges(seed, history, tree_width, tree_depth)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', required=True, help='', type=argparse.FileType('r'))
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
-
-    # Depth of socratic conversation
-    depth = 2
-
-    # Chunk size of splits in input file
-    chunk_size = 50000
+    # parser.add_argument('-tree_width', required=True, help='', type=int)
+    # parser.add_argument('-tree_depth', required=True, help='', type=int)
+    # parser.add_argument('-chunk_size', required=True, help='', type=int)
     args = parser.parse_args()
 
-    histories_list = []
+    # Pipeline parameters
+    tree_width = 1 # Width of  conversation tree
+    tree_depth = 1 # Depth of conversation tree
+    chunk_size = 40000 # # Chunk size of splits in the input file
 
-    history = ChatHistory()
-    exchanges = generate_exchanges("Why is the sky blue", history, 2, 2)
+    tree_list = [] # Global list of conversations
+    pipeline(args.i, args.o, tree_width, tree_depth)
 
-    exchanges_dump = [history.get_history() for history in histories_list]
-    print(exchanges_dump)
-    json.dump(exchanges_dump, args.o, indent=4)
+    tree_dump = [history.get_history() for history in tree_list]
+    print(tree_dump)
+    json.dump(tree_dump, args.o, indent=4)
 
     # pipeline(args.i, args.o)
