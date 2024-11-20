@@ -31,3 +31,21 @@ def generate_exchanges(seed, history:ChatHistory, iter:int, depth:int) -> list:
         histories.append(item_histories)
 
     return histories
+
+
+    # Print the result
+    def print_tree(exchanges, level=0, history_number=1):
+        """Helper function to print the tree structure with tabs and numbering"""
+        for index, exchange in enumerate(exchanges, start=history_number):
+            print(" " * (level * 4) + f"History {index}:")  # Indentation with tabs for clarity
+            print(" " * (level * 4 + 2) + str(exchange['history']))  # Print the current history
+
+            if exchange['children']:  # If there are child histories, recurse
+                print(" " * (level * 4 + 2) + "Children:")
+                print_tree(exchange['children'], level + 1, history_number=index + 1)
+
+
+    # Now, you can run this function after generating the exchanges to display the tree clearly.
+
+    # Print the conversation tree
+    print_tree(exchanges)

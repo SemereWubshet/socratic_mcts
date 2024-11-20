@@ -59,37 +59,26 @@ def judge(seed:str, text_chunk:str, history:ChatHistory) -> bool:
     judge_response = qt.ollama_judge(seed, text_chunk, str(history))
     return judge_response
 
-def generate_exchanges(seed, history:ChatHistory, iter:int, depth:int) -> list:
+def generate_exchanges(seed, root:ChatHistory, tree_width:int, tree_depth:int) -> list:
     """Generate iter Socratic responses by the teacher"""
-    if depth == 0: return [];
+    if tree_depth == 0:
+        return []
 
-    student_query = student(seed, history)
-    history.add_student(student_query) # Student response
+    student_query = student(seed, root)
+    root.add_student(student_query) # Student response
 
     exchanges = []
-
-    for _ in range(iter): # Multiple teacher responses
-        new_history = copy.deepcopy(history)
+    for _ in range(tree_width): # Multiple teacher responses
+        new_history = copy.deepcopy(root)
 
         teacher_query = teacher(new_history)
         new_history.add_teacher(teacher_query)
+        histories_list.append(new_history)
 
-        item_histories = generate_exchanges(seed, new_history, iter, depth - 1)
-        exchanges.append({'history': new_history, 'children': item_histories})
+        item_histories = generate_exchanges(seed, new_history, tree_width, tree_depth - 1)
+        # exchanges.append({'history': new_history, 'children': item_histories}) # Nested dictionary
 
     return exchanges
-
-# def generate_tree(tree_depth:int, tree_width:int, text_chunk:str) -> list:
-#     seed = gen_seed_topic(text_chunk)
-#     history = ChatHistory()
-#
-#     history_list = generate_exchanges(seed, history, tree_width)
-#
-#
-#     for _ in range(tree_depth - 1):
-#         list = generate_exchanges(seed, history, tree_width)
-#
-#     return list
 
 def split_into_chunks(text, chunk_size):
     """Split a given text file into manageable pieces"""
@@ -117,7 +106,14 @@ if __name__ == "__main__":
     # Chunk size of splits in input file
     chunk_size = 50000
     args = parser.parse_args()
+
+    histories_list = []
+
     history = ChatHistory()
     exchanges = generate_exchanges("Why is the sky blue", history, 2, 2)
+
+    exchanges_dump = [history.get_history() for history in histories_list]
+    print(exchanges_dump)
+    json.dump(exchanges_dump, args.o, indent=4)
 
     # pipeline(args.i, args.o)
