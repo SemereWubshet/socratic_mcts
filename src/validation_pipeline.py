@@ -53,7 +53,7 @@ def student(seed:str, history:ChatHistory) -> str:
     return student_response
 
 
-def judge(seed:str, text_chunk:str, history:ChatHistory) -> bool:
+def judge(seed:str, text_chunk:str, history:ChatHistory) -> int:
     """Judge whether the teacher displayed correct Socratic behavior"""
     judge_response = qt.ollama_judge(seed, text_chunk, str(history))
     return judge_response
@@ -111,4 +111,18 @@ if __name__ == "__main__":
     # Chunk size of splits in input file
     chunk_size = 100000
     args = parser.parse_args()
+
+    h = ChatHistory()
+    h.add_student("Why is the sky blue?")
+    h.add_teacher("Could it be the angle of the sun?")
+    h.add_student("Perhaps the blue light is spread by the atmosphere giving it a blue tint.")
+    h.add_teacher("Exactly! That's also the reason the sky turns orange during sunrise and sunset.")
+
+    a = str(h)
+    b = h.get_history()
+
+    # print("a", a)
+    # print("b", b)
+
+
     pipeline(args.i, args.o)

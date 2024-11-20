@@ -59,7 +59,7 @@ def ollama_gen_teacher_response(content):
     teacher_response = response["message"]["content"]
     return teacher_response
 
-def ollama_judge(seed, text_chunk, history):
+def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     content = ("Overall topic: " + text_chunk +
                "\n Seed question: " + seed +
                "\n Conversation History: " + history)
