@@ -79,14 +79,16 @@ def split_into_chunks(text, chunk_size):
     # Split text into chunks of size chunk_size
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
-def pipeline(input_name:TextIO, output_name:TextIO) -> None:
+def pipeline(input_name:TextIO, output_name:TextIO, conversation_number) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
     contents = input_name.read()
     text_chunks = split_into_chunks(contents, chunk_size)
 
     exchanges = []
     results = []
-    for text_chunk in text_chunks:
+
+    for index in range(conversation_number):
+        text_chunk = text_chunks[index]
         exchange, result = generate_exchange(text_chunk)
         # print("I'm result: " + str(result))
         exchanges.append(exchange)
@@ -99,7 +101,7 @@ def pipeline(input_name:TextIO, output_name:TextIO) -> None:
     print("I'm many results: " + str(results))
     for result in results:
         with open('datasets/' + 'results_val.txt', 'w') as f:
-            f.write("\n ======= \n" + result)
+            f.write(result)
 
     # Save the results somehow as well!
 
@@ -112,7 +114,7 @@ if __name__ == "__main__":
     depth = 1
 
     # Chunk size of splits in input file
-    chunk_size = 1000
+    chunk_size = 5000
     args = parser.parse_args()
 
 
@@ -137,4 +139,4 @@ if __name__ == "__main__":
     # print("b", b)
 
 
-    pipeline(args.i, args.o)
+    pipeline(args.i, args.o, 2)

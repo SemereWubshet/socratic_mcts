@@ -2,7 +2,9 @@ import argparse
 import json
 import pathlib
 import copy
-from typing import TextIO
+from typing import TextIO, List, Optional, Any
+
+# from pydantic import BaseModel
 
 import query_tools as qt
 
@@ -12,6 +14,76 @@ def gen_seed_topic(text_chunk:str) -> str:
     seed_topic = qt.ollama_gen_seed(text_chunk)
     return seed_topic
 
+class StudentNode:
+    children:List["TeacherNode"]
+    question:str
+    seed:str
+    parent:Optional["TeacherNode"]
+    def __init__(self, seed: str, parent:Optional["TeacherNode"], question: str):
+        self.seed = seed
+        self.parent = parent
+        self.question = question
+        self.children = []
+        # super().__init__(seed=seed, parent=parent, question=question, children=self.children)
+
+    def query(self) -> "TeacherNode":
+        query = qt.ollama_gen_teacher_response(self.history())
+        teacher_node = TeacherNode(reply=query, parent=self)
+        self.children.append(teacher_node)
+        return teacher_node
+
+    def seed(self) -> str:
+        ...
+    def history(self) -> str:
+        # Traverse the tree and generate the history
+        return ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {'role': "student", "question": self.question,
+                   "children": [child.to_dict() for child in self.children]}
+    @classmethod
+    def from_dict(cls, d: dict[str,Any], parent: Optional["TeacherNode"]) -> "StudentNode":
+        assert d["role"] == 'student'
+        question = d["question"]
+        if parent is None:
+            seed = question
+        student_node = StudentNode("", parent, question)
+        children = [TeacherNode.from_dict(child, student_node) for child in d["children"]]
+        student_node.children.extend(children)
+        return student_node
+
+
+class TeacherNode:
+    children:List[StudentNode]
+    parent:StudentNode
+    reply:str
+    def __init__(self, reply:str, parent:StudentNode):
+        self.reply = reply
+        self.parent = parent
+        self.children = []
+    #     # super().__init__(reply=self.reply, parent=parent, children=self.children)
+
+    def history(self) -> str:
+        # Traverse the tree and generate the history
+        return ""
+    def query(self) -> StudentNode:
+        query = qt.ollama_gen_student_response(self.parent.seed, self.history())
+        student_node = StudentNode(seed=self.parent.seed, parent=self, question=query)
+        self.children.append(student_node)
+        return student_node
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"role": "teacher", "reply": self.reply, "children": [child.to_dict() for child in self.children]}
+
+    @classmethod
+    def from_dict(cls, d: dict[str,Any], parent: StudentNode) -> "TeacherNode":
+        assert d["role"] == 'teacher'
+        reply = d["reply"]
+
+        teacher_node = TeacherNode(reply, parent)
+        children = [StudentNode.from_dict(child, teacher_node) for child in d["children"]]
+        teacher_node.children.extend(children)
+        return teacher_node
 
 class ChatHistory:
     """The history will store a sequence of student and teacher queries."""
@@ -119,7 +191,7 @@ if __name__ == "__main__":
     tree_dump = [history.get_history() for history in tree_list]
     print(tree_dump)
     json.dump(tree_dump, args.o, indent=4)
-zzazaz1111411
+
     for result in results_list:
         with open('datasets/' + 'results.txt', 'w') as f:
             f.write("\n ===== " + result)
