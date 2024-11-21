@@ -66,5 +66,10 @@ def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
     response = client.chat(model="llama3.1", messages=[{"role": "system", "content": judge_role},
                                                        {"role": "user", "content": content}])
+
+    print("-------")
+    print(judge_role + "\n" + content)
+    print("-------")
+    print("This is  my role: " + judge_role)
     judge_response = response["message"]["content"]
     return judge_response

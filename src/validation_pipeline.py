@@ -58,7 +58,7 @@ def judge(seed:str, text_chunk:str, history:ChatHistory) -> int:
     judge_response = qt.ollama_judge(seed, text_chunk, str(history))
     return judge_response
 
-def generate_exchange(text_chunk:str) -> (ChatHistory, bool):
+def generate_exchange(text_chunk:str) -> (ChatHistory, int):
     """Generate Socratic dialogue between a student and a teacher"""
     seed = gen_seed_topic(text_chunk)
     history = ChatHistory()
@@ -71,6 +71,7 @@ def generate_exchange(text_chunk:str) -> (ChatHistory, bool):
         history.add_teacher(teacher_query)
 
     result = judge(seed, text_chunk, history)
+    print("Result inside the generate exchange: " + str(result))
     return history, result
 
 def split_into_chunks(text, chunk_size):
@@ -87,6 +88,7 @@ def pipeline(input_name:TextIO, output_name:TextIO) -> None:
     results = []
     for text_chunk in text_chunks:
         exchange, result = generate_exchange(text_chunk)
+        # print("I'm result: " + str(result))
         exchanges.append(exchange)
         results.append(result)
 
@@ -94,9 +96,10 @@ def pipeline(input_name:TextIO, output_name:TextIO) -> None:
     json.dump(exchanges_dump, args.o, indent=4)
     args.o.close()
 
+    print("I'm many results: " + str(results))
     for result in results:
         with open('datasets/' + 'results_val.txt', 'w') as f:
-            f.write("\n ===== " + result)
+            f.write("\n ======= \n" + result)
 
     # Save the results somehow as well!
 
@@ -109,17 +112,26 @@ if __name__ == "__main__":
     depth = 1
 
     # Chunk size of splits in input file
-    chunk_size = 100000
+    chunk_size = 1000
     args = parser.parse_args()
 
-    h = ChatHistory()
-    h.add_student("Why is the sky blue?")
-    h.add_teacher("Could it be the angle of the sun?")
-    h.add_student("Perhaps the blue light is spread by the atmosphere giving it a blue tint.")
-    h.add_teacher("Exactly! That's also the reason the sky turns orange during sunrise and sunset.")
 
-    a = str(h)
-    b = h.get_history()
+    # h = ChatHistory()
+    # h.add_student("Why is the sky blue?")
+    # h.add_teacher("Could it be the angle of the sun?")
+    # h.add_student("Perhaps the blue light is spread by the atmosphere giving it a blue tint.")
+    # h.add_teacher("Exactly! That's also the reason the sky turns orange during sunrise and sunset.")
+    #
+    # a = str(h)
+    # b = h.get_history()
+    # json.dump(str(h), args.o, indent=4)
+    # judge_response = judge("The sky", "The sky is blue", h)
+    # print("I'm judge response: " + str(judge_response))
+    # x = [judge_response]
+    # for result in x:
+    #     with open('datasets/' + 'results_val.txt', 'w') as f:
+    #         f.write("\n ===== " + str(result))
+
 
     # print("a", a)
     # print("b", b)

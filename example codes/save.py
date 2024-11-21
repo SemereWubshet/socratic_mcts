@@ -119,3 +119,17 @@ kk = ChatHistory("I'm kk")
 j.add_child((0,), kk)
 x = j.get_node((5,))
 print(x.a)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
