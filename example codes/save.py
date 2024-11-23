@@ -160,6 +160,45 @@ for link in url_list:
 
 =====
 
+# h = ChatHistory()
+# h.add_student("Why is the sky blue?")
+# h.add_teacher("Could it be the angle of the sun?")
+# h.add_student("Perhaps the blue light is spread by the atmosphere giving it a blue tint.")
+# h.add_teacher("Exactly! That's also the reason the sky turns orange during sunrise and sunset.")
+#
+# j = ChatHistory()
+# j.add_student("What is love?")
+# j.add_teacher("What do you think it is?")
+# j.add_student("Perhaps when we are willing to do anything for another person?")
+# j.add_teacher("Of course!.")
+#
+#
+# a = str(h)
+# b = h.get_history()
+# c = j.get_history()
+# d = [b,c]
+# json.dump(d, args.o, indent=4)
+# judge_response = judge("The sky", "The sky is blue", h)
+# print("I'm judge response: " + str(judge_response))
+# x = [judge_response]
+# for result in x:
+#     with open('datasets/' + 'results_val.txt', 'w') as f:
+#         f.write(str(result))
+
+# file_path = 'datasets/' + 'eval.json'
+# with open(file_path, 'r') as file:
+#     data = json.load(file)
+
+# print(type(data), type(data[0]))
+# print(data[0])
+# print(type(data[0][0]))
+# print(data[0][0])
+# histories_list = [ChatHistory.from_history(exchange) for exchange in data]
+# out = [h.get_history() for h in histories_list]
+# json.dump(out, args.o, indent=4)
+
+
+
 
 
 

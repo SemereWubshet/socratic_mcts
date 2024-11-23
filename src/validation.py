@@ -1,6 +1,7 @@
 import argparse
 import json
 import pathlib
+import random
 from typing import TextIO
 
 import query_tools as qt
@@ -23,8 +24,6 @@ class ChatHistory:
         self.history.append({'role': 'teacher', 'query': query})
     def get_history(self) -> list:
         return self.history
-    # def __str__(self) -> str:
-    #     return super().__str__()
     def __str__(self) -> str:
         history_str = []
         for entry in self.history:
@@ -89,90 +88,28 @@ def generate_exchange(text_chunk:str) -> ChatHistory:
 
 def split_into_chunks(text, chunk_size):
     """Split a given text file into manageable pieces"""
-    # Split text into chunks of size chunk_size
-    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+    chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+    random.shuffle(chunks) # Randomize chunks
+    return chunks
 
-def pipeline(input_name:TextIO, output_name:TextIO, conversation_number) -> None:
-    """Assemble tools to build a Socratic pedagogical dialogue"""
-    contents = input_name.read()
-    text_chunks = split_into_chunks(contents, chunk_size)
+def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> None:
+    conversations_list = json.load(input_name)
+    histories_list = [ChatHistory.from_history(exchange) for exchange in conversations_list]
 
-    exchanges = []
-    results = []
+    results = [judge()]
 
-    for index in range(conversation_number):
-        text_chunk = text_chunks[index]
-        exchange = generate_exchange(text_chunk)
-        exchanges.append(exchange)
 
-    exchanges_dump = [history.get_history() for history in exchanges]
-    json.dump(exchanges_dump, args.o, indent=4)
-    args.o.close()
-
-def abc(inny:TextIO, ciby:TextIO, outy:TextIO):
-    contents = ciby.read()
-    print(type(contents))
-    print(contents)
-    return contents
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', required=True, help='', type=argparse.FileType('r'))
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
-    parser.add_argument('-c', required=True, help='', type=argparse.FileType('r'))
 
-
-    # Depth of socratic conversation
-    depth = 1
-
-    # Chunk size of splits in input file
-    chunk_size = 5000
+    # Attributes of socratic conversations
+    depth = 1 # Depth of conversations
+    chunk_size = 5000 # Chunk size of splits in input file
+    num_conversations = 5 # Number of conversations
     args = parser.parse_args()
 
-    a = abc(args.i, args.c, args.o)
-
-    # h = ChatHistory()
-    # h.add_student("Why is the sky blue?")
-    # h.add_teacher("Could it be the angle of the sun?")
-    # h.add_student("Perhaps the blue light is spread by the atmosphere giving it a blue tint.")
-    # h.add_teacher("Exactly! That's also the reason the sky turns orange during sunrise and sunset.")
-    #
-    # j = ChatHistory()
-    # j.add_student("What is love?")
-    # j.add_teacher("What do you think it is?")
-    # j.add_student("Perhaps when we are willing to do anything for another person?")
-    # j.add_teacher("Of course!.")
-    #
-    #
-    # a = str(h)
-    # b = h.get_history()
-    # c = j.get_history()
-    # d = [b,c]
-    # json.dump(d, args.o, indent=4)
-    # judge_response = judge("The sky", "The sky is blue", h)
-    # print("I'm judge response: " + str(judge_response))
-    # x = [judge_response]
-    # for result in x:
-    #     with open('datasets/' + 'results_val.txt', 'w') as f:
-    #         f.write(str(result))
-
-    # file_path = 'datasets/' + 'eval.json'
-    # with open(file_path, 'r') as file:
-    #     data = json.load(file)
-
-    # print(type(data), type(data[0]))
-    # print(data[0])
-    # print(type(data[0][0]))
-    # print(data[0][0])
-    # histories_list = [ChatHistory.from_history(exchange) for exchange in data]
-    # out = [h.get_history() for h in histories_list]
-    # json.dump(out, args.o, indent=4)
-
-
-
-
-    # print("a", a)
-    # print("b", b)
-
-
-    # pipeline(args.i, args.o, 2)
+    # Run pipeline
+    pipeline(args.i, args.o, num_conversations)
