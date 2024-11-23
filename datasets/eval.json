@@ -2,11 +2,37 @@
     [
         {
             "role": "student",
-            "query": "How do the symbolic significance of fish in various religions and cultures compare to their representation in modern art and pop culture, such as in movies and books?"
+            "query": "Why is the sky blue?"
         },
         {
             "role": "teacher",
-            "query": "What qualities might you think are common among the symbolic representations of fish across different cultures, if any? And how might those similarities or differences influence our understanding of these symbols in a contemporary context?"
+            "query": "Could it be the angle of the sun?"
+        },
+        {
+            "role": "student",
+            "query": "Perhaps the blue light is spread by the atmosphere giving it a blue tint."
+        },
+        {
+            "role": "teacher",
+            "query": "Exactly! That's also the reason the sky turns orange during sunrise and sunset."
+        }
+    ],
+    [
+        {
+            "role": "student",
+            "query": "What is love?"
+        },
+        {
+            "role": "teacher",
+            "query": "What do you think it is?"
+        },
+        {
+            "role": "student",
+            "query": "Perhaps when we are willing to do anything for another person?"
+        },
+        {
+            "role": "teacher",
+            "query": "Of course!."
         }
     ]
 ]

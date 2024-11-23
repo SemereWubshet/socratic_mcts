@@ -38,6 +38,20 @@ class ChatHistory:
     def get_last(self) -> dict:
         return self.history[-1] if self.history else None
 
+    @classmethod
+    def from_history(cls, exchanges: list) -> 'ChatHistory':
+        """Regenerate a ChatHistory object from a string representation of exchanges."""
+        # history_data = json.loads(exchanges)  # Parse the string into a list of dictionaries
+        chat_history = cls()  # Create a new instance of ChatHistory
+
+        for entry in exchanges:
+            if entry['role'] == 'student':
+                chat_history.add_student(entry['query'])
+            elif entry['role'] == 'teacher':
+                chat_history.add_teacher(entry['query'])
+
+        return chat_history
+
 def teacher(history:ChatHistory) -> str:
     """Generate teacher response based on history"""
     teacher_response = qt.ollama_gen_teacher_response(str(history))
@@ -124,19 +138,42 @@ if __name__ == "__main__":
     # h.add_student("Perhaps the blue light is spread by the atmosphere giving it a blue tint.")
     # h.add_teacher("Exactly! That's also the reason the sky turns orange during sunrise and sunset.")
     #
+    # j = ChatHistory()
+    # j.add_student("What is love?")
+    # j.add_teacher("What do you think it is?")
+    # j.add_student("Perhaps when we are willing to do anything for another person?")
+    # j.add_teacher("Of course!.")
+    #
+    #
     # a = str(h)
     # b = h.get_history()
-    # json.dump(str(h), args.o, indent=4)
+    # c = j.get_history()
+    # d = [b,c]
+    # json.dump(d, args.o, indent=4)
     # judge_response = judge("The sky", "The sky is blue", h)
     # print("I'm judge response: " + str(judge_response))
     # x = [judge_response]
     # for result in x:
     #     with open('datasets/' + 'results_val.txt', 'w') as f:
-    #         f.write("\n ===== " + str(result))
+    #         f.write(str(result))
+
+    file_path = 'datasets/' + 'eval.json'
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+
+    # print(type(data), type(data[0]))
+    # print(data[0])
+    # print(type(data[0][0]))
+    # print(data[0][0])
+    histories_list = [ChatHistory.from_history(exchange) for exchange in data]
+    out = [h.get_history() for h in histories_list]
+    json.dump(out, args.o, indent=4)
+
+
 
 
     # print("a", a)
     # print("b", b)
 
 
-    pipeline(args.i, args.o, 2)
+    # pipeline(args.i, args.o, 2)
