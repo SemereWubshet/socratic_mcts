@@ -6,6 +6,7 @@ from typing import TextIO
 import query_tools as qt
 
 
+# Remove this function: I can just qt.ollama_gen_seed() directly
 def gen_seed_topic(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
     seed_topic = qt.ollama_gen_seed(text_chunk)
@@ -72,7 +73,7 @@ def judge(seed:str, text_chunk:str, history:ChatHistory) -> int:
     judge_response = qt.ollama_judge(seed, text_chunk, str(history))
     return judge_response
 
-def generate_exchange(text_chunk:str) -> (ChatHistory, int):
+def generate_exchange(text_chunk:str) -> ChatHistory:
     """Generate Socratic dialogue between a student and a teacher"""
     seed = gen_seed_topic(text_chunk)
     history = ChatHistory()
@@ -84,9 +85,7 @@ def generate_exchange(text_chunk:str) -> (ChatHistory, int):
         teacher_query = teacher(history)
         history.add_teacher(teacher_query)
 
-    result = judge(seed, text_chunk, history)
-    print("Result inside the generate exchange: " + str(result))
-    return history, result
+    return history
 
 def split_into_chunks(text, chunk_size):
     """Split a given text file into manageable pieces"""
@@ -103,26 +102,25 @@ def pipeline(input_name:TextIO, output_name:TextIO, conversation_number) -> None
 
     for index in range(conversation_number):
         text_chunk = text_chunks[index]
-        exchange, result = generate_exchange(text_chunk)
-        # print("I'm result: " + str(result))
+        exchange = generate_exchange(text_chunk)
         exchanges.append(exchange)
-        results.append(result)
 
     exchanges_dump = [history.get_history() for history in exchanges]
     json.dump(exchanges_dump, args.o, indent=4)
     args.o.close()
 
-    print("I'm many results: " + str(results))
-    for result in results:
-        with open('datasets/' + 'results_val.txt', 'w') as f:
-            f.write(result)
-
-    # Save the results somehow as well!
+def abc(inny:TextIO, ciby:TextIO, outy:TextIO):
+    contents = ciby.read()
+    print(type(contents))
+    print(contents)
+    return contents
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', required=True, help='', type=argparse.FileType('r'))
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
+    parser.add_argument('-c', required=True, help='', type=argparse.FileType('r'))
+
 
     # Depth of socratic conversation
     depth = 1
@@ -131,6 +129,7 @@ if __name__ == "__main__":
     chunk_size = 5000
     args = parser.parse_args()
 
+    a = abc(args.i, args.c, args.o)
 
     # h = ChatHistory()
     # h.add_student("Why is the sky blue?")
@@ -157,17 +156,17 @@ if __name__ == "__main__":
     #     with open('datasets/' + 'results_val.txt', 'w') as f:
     #         f.write(str(result))
 
-    file_path = 'datasets/' + 'eval.json'
-    with open(file_path, 'r') as file:
-        data = json.load(file)
+    # file_path = 'datasets/' + 'eval.json'
+    # with open(file_path, 'r') as file:
+    #     data = json.load(file)
 
     # print(type(data), type(data[0]))
     # print(data[0])
     # print(type(data[0][0]))
     # print(data[0][0])
-    histories_list = [ChatHistory.from_history(exchange) for exchange in data]
-    out = [h.get_history() for h in histories_list]
-    json.dump(out, args.o, indent=4)
+    # histories_list = [ChatHistory.from_history(exchange) for exchange in data]
+    # out = [h.get_history() for h in histories_list]
+    # json.dump(out, args.o, indent=4)
 
 
 

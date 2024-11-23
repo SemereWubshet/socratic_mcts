@@ -9,9 +9,10 @@ pages_list = ['Art' , 'Technology', 'History', 'Literature',
               'Health', 'Psychology', 'Education', 'Religion',
               'Mathematics', 'Astronomy', 'Culture', 'Engineering']
 
-# Save each page as separate file
-for page_name in pages_list:
-    page = wikipedia.page(page_name)
-    content = page.content
-    with open('../knowledge/'+page_name+'.txt', 'w') as f:
-        f.write(content)
+# Save all pages in one file
+with open('../knowledge/diverse_knowledge.txt', 'w') as f:
+    for page_name in pages_list:
+        page = wikipedia.page(page_name)
+        content = page.content
+        f.write(f"\n\nTitle: {page_name}\n")
+        f.write(f"{content}\n")
