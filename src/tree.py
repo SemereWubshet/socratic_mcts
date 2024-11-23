@@ -7,11 +7,9 @@ from typing import TextIO, List, Optional, Any
 # from pydantic import BaseModel
 
 import query_tools as qt
-
-
 def gen_seed_topic(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
-    seed_topic = qt.ollama_gen_seed(text_chunk)
+    seed_topic = qt.openai_gen_seed(text_chunk)
     return seed_topic
 
 class StudentNode:
@@ -27,7 +25,7 @@ class StudentNode:
         # super().__init__(seed=seed, parent=parent, question=question, children=self.children)
 
     def query(self) -> "TeacherNode":
-        query = qt.ollama_gen_teacher_response(self.history())
+        query = qt.openai_gen_teacher_response(self.history())
         teacher_node = TeacherNode(reply=query, parent=self)
         self.children.append(teacher_node)
         return teacher_node
@@ -67,7 +65,7 @@ class TeacherNode:
         # Traverse the tree and generate the history
         return ""
     def query(self) -> StudentNode:
-        query = qt.ollama_gen_student_response(self.parent.seed, self.history())
+        query = qt.openai_gen_student_response(self.parent.seed, self.history())
         student_node = StudentNode(seed=self.parent.seed, parent=self, question=query)
         self.children.append(student_node)
         return student_node
@@ -85,50 +83,109 @@ class TeacherNode:
         teacher_node.children.extend(children)
         return teacher_node
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class ChatHistory:
     """The history will store a sequence of student and teacher queries."""
     def __init__(self):
         self.history = []
+
+    # Add at the beginning
+    def add_text_chunk(self, query:str) -> None:
+        self.history.append({'role': 'text_chunk', 'query': query})
     def add_student(self, query:str) -> None:
         self.history.append({'role': 'student', 'query': query})
     def add_teacher(self, query:str) -> None:
         self.history.append({'role': 'teacher', 'query': query})
-    def get_history(self) -> list:
+
+    # Add at the end
+    def add_eval(self, query:int) -> None:
+        self.history.append({'role': 'evaluation', 'query': query})
+    def get_history_list(self) -> list:
         return self.history
-    # def __str__(self) -> str:
-    #     return super().__str__()
     def __str__(self) -> str:
         history_str = []
-        for entry in self.history:
+        for entry in self.history[1:-1]:
             role = entry['role']
             query = entry['query']
             history_str.append(f"{role.capitalize()}: {query}")
         return "\n".join(history_str)
     def is_empty(self) -> bool:
         return len(self.history) == 0
-    def get_first(self) -> dict:
-        return self.history[0] if self.history else None
-    def get_last(self) -> dict:
-        return self.history[-1] if self.history else None
+    def get_text_chunk(self) -> str:
+        return self.history[0]["query"]
+    def get_seed(self) -> str:
+        return self.history[1]["query"]
+    def get_eval(self) -> str:
+        if self.history[-1]['role'] == 'evaluation':
+            return self.history[-1]["query"]
+        else:
+            return ""
+
+    @classmethod
+    def from_history(cls, exchanges: list) -> 'ChatHistory':
+        """Regenerate a ChatHistory object from a string representation of exchanges."""
+        chat_history = cls()  # Create a new instance of ChatHistory
+
+        for entry in exchanges:
+            if entry['role'] == 'text_chunk':
+                chat_history.add_text_chunk(entry['query'])
+            elif entry['role'] == 'student':
+                chat_history.add_student(entry['query'])
+            elif entry['role'] == 'teacher':
+                chat_history.add_teacher(entry['query'])
+            elif entry['role'] == 'evaluation':
+                chat_history.add_eval(entry['query'])
+
+        return chat_history
 
 def teacher(history:ChatHistory) -> str:
     """Generate teacher response based on history"""
-    teacher_response = qt.ollama_gen_teacher_response(str(history))
+    teacher_response = qt.openai_gen_teacher_response(str(history))
     return teacher_response
 
 def student(seed:str, history:ChatHistory) -> str:
     """Generate student response based on seed and history"""
     if history.is_empty():
-        student_response = qt.ollama_gen_soc_question(seed)
+        student_response = qt.openai_gen_soc_question(seed)
     else:
-        student_response = qt.ollama_gen_student_response(seed, str(history))
+        student_response = qt.openai_gen_student_response(seed, str(history))
 
     return student_response
 
 
-def judge(seed:str, text_chunk:str, history:ChatHistory) -> bool:
+def judge(history:ChatHistory) -> int:
     """Judge whether the teacher displayed correct Socratic behavior"""
-    judge_response = qt.ollama_judge(seed, text_chunk, str(history))
+    seed = history.get_seed()
+    text_chunk = history.get_text_chunk()
+    history_str = str(history)
+    judge_response = qt.openai_gen_judge(seed, text_chunk, history_str) # Using open_ai at the moment
     return judge_response
 
 def generate_exchanges(seed:str, text_chunk:str, history:ChatHistory, tree_width:int, tree_depth:int) -> list:

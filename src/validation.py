@@ -87,7 +87,7 @@ def judge(history:ChatHistory) -> int:
     seed = history.get_seed()
     text_chunk = history.get_text_chunk()
     history_str = str(history)
-    judge_response = qt.openai_gen_judge(seed, text_chunk, history_str)
+    judge_response = qt.openai_gen_judge(seed, text_chunk, history_str) # Using open_ai at the moment
     return judge_response
 
 def pipeline(input_name:TextIO, output_name:TextIO) -> None:
