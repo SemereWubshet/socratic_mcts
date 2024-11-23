@@ -50,6 +50,8 @@ class StudentNode:
         student_node.children.extend(children)
         return student_node
 
+class StudentRootNode(StudentNode):
+    seed:str
 
 class TeacherNode:
     children:List[StudentNode]
