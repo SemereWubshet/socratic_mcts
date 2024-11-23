@@ -198,10 +198,24 @@ for link in url_list:
 # json.dump(out, args.o, indent=4)
 
 
+# h = ChatHistory()
+# h.add_text_chunk("The sky is blue because of things.")
+# h.add_student("Why is the sky blue?")
+# h.add_teacher("Could it be the angle of the sun?")
+# h.add_student("Perhaps the blue light is spread by the atmosphere giving it a blue tint.")
+# h.add_teacher("Exactly! That's also the reason the sky turns orange during sunrise and sunset.")
 
+j = [{'role': 'text_chunk', 'query': 'The sky is blue because of things.'},
+     {'role': 'student', 'query': 'Why is the sky blue?'},
+     {'role': 'teacher', 'query': 'Could it be the angle of the sun?'},
+     {'role': 'student', 'query': 'Perhaps the blue light is spread by the atmosphere giving it a blue tint.'},
+     {'role': 'teacher', 'query': "Exactly! That's also the reason the sky turns orange during sunrise and sunset."}]
+k = [{'role': 'text_chunk', 'query': 'Pineapple.'}, {'role': 'student', 'query': 'Why fruit?'},
+     {'role': 'teacher', 'query': 'Delicious, no?'}, {'role': 'student', 'query': 'True!'},
+     {'role': 'teacher', 'query': "Amen."}]
 
-
-
-
-
+l = ChatHistory.from_history(j)
+m = ChatHistory.from_history(k)
+n = [o.get_history() for o in [l, m]]
+json.dump(n, args.o, indent=4)
 

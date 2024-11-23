@@ -18,6 +18,7 @@ with open('templates/student.txt', 'r') as f:
 with open('templates/teacher.txt', 'r') as f:
     teacher_role = f.read()
 
+
 def openai_gen_soc_questions(content):
     client = OpenAI()
     response = client.chat.completions.create(
@@ -29,6 +30,17 @@ def openai_gen_soc_questions(content):
     )
     questions = response.choices[0].message.content
     return questions
+
+def openai_gen_judge(text_chunk, seed, history):
+    client = OpenAI()
+    content = ("Overall topic: " + text_chunk +
+               "\n Seed question: " + seed +
+               "\n Conversation History: " + history)
+    response = client.chat.completions.create(model="gpt-4o-mini",
+                                              messages=[{"role": "system", "content": judge_role},
+                                                        {"role": "user", "content": content}])
+    judge_response = response.choices[0].message.content
+    return judge_response
 
 def ollama_gen_soc_question(content):
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
@@ -66,10 +78,5 @@ def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
     response = client.chat(model="llama3.1", messages=[{"role": "system", "content": judge_role},
                                                        {"role": "user", "content": content}])
-
-    print("-------")
-    print(judge_role + "\n" + content)
-    print("-------")
-    print("This is  my role: " + judge_role)
     judge_response = response["message"]["content"]
     return judge_response

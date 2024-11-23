@@ -1,0 +1,46 @@
+[
+    [
+        {
+            "role": "text_chunk",
+            "query": "The sky is blue because of things."
+        },
+        {
+            "role": "student",
+            "query": "Why is the sky blue?"
+        },
+        {
+            "role": "teacher",
+            "query": "Could it be the angle of the sun?"
+        },
+        {
+            "role": "student",
+            "query": "Perhaps the blue light is spread by the atmosphere giving it a blue tint."
+        },
+        {
+            "role": "teacher",
+            "query": "Exactly! That's also the reason the sky turns orange during sunrise and sunset."
+        }
+    ],
+    [
+        {
+            "role": "text_chunk",
+            "query": "Pineapple."
+        },
+        {
+            "role": "student",
+            "query": "Why fruit?"
+        },
+        {
+            "role": "teacher",
+            "query": "Delicious, no?"
+        },
+        {
+            "role": "student",
+            "query": "True!"
+        },
+        {
+            "role": "teacher",
+            "query": "Amen."
+        }
+    ]
+]

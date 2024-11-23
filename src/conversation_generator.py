@@ -1,8 +1,9 @@
 import argparse
 import json
-import pathlib
 import random
 from typing import TextIO
+
+from pydantic import NonNegativeFloat
 
 import query_tools as qt
 
@@ -18,37 +19,53 @@ class ChatHistory:
     """The history will store a sequence of student and teacher queries."""
     def __init__(self):
         self.history = []
+
+    # Add at the beginning
+    def add_text_chunk(self, query:str) -> None:
+        self.history.append({'role': 'text_chunk', 'query': query})
     def add_student(self, query:str) -> None:
         self.history.append({'role': 'student', 'query': query})
     def add_teacher(self, query:str) -> None:
         self.history.append({'role': 'teacher', 'query': query})
-    def get_history(self) -> list:
+
+    # Add at the end
+    def add_eval(self, query:int) -> None:
+        self.history.append({'role': 'evaluation', 'query': query})
+    def get_history_list(self) -> list:
         return self.history
     def __str__(self) -> str:
         history_str = []
-        for entry in self.history:
+        for entry in self.history[1:-1]:
             role = entry['role']
             query = entry['query']
             history_str.append(f"{role.capitalize()}: {query}")
         return "\n".join(history_str)
     def is_empty(self) -> bool:
         return len(self.history) == 0
-    def get_first(self) -> dict:
-        return self.history[0] if self.history else None
-    def get_last(self) -> dict:
-        return self.history[-1] if self.history else None
+    def get_text_chunk(self) -> str:
+        return self.history[0]["query"]
+    def get_seed(self) -> str:
+        return self.history[1]["query"]
+    def get_eval(self) -> str:
+        if self.history[-1]['role'] == 'evaluation':
+            return self.history[-1]["query"]
+        else:
+            return ""
 
     @classmethod
     def from_history(cls, exchanges: list) -> 'ChatHistory':
         """Regenerate a ChatHistory object from a string representation of exchanges."""
-        # history_data = json.loads(exchanges)  # Parse the string into a list of dictionaries
         chat_history = cls()  # Create a new instance of ChatHistory
 
         for entry in exchanges:
-            if entry['role'] == 'student':
+            if entry['role'] == 'text_chunk':
+                chat_history.add_text_chunk(entry['query'])
+            elif entry['role'] == 'student':
                 chat_history.add_student(entry['query'])
             elif entry['role'] == 'teacher':
                 chat_history.add_teacher(entry['query'])
+            elif entry['role'] == 'evaluation':
+                chat_history.add_eval(entry['query'])
 
         return chat_history
 
@@ -76,6 +93,7 @@ def generate_exchange(text_chunk:str) -> ChatHistory:
     """Generate Socratic dialogue between a student and a teacher"""
     seed = gen_seed_topic(text_chunk)
     history = ChatHistory()
+    history.add_text_chunk(text_chunk)
 
     for _ in range(depth):
         student_query = student(seed, history)
@@ -104,9 +122,9 @@ def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> 
         exchange = generate_exchange(text_chunk)
         exchanges.append(exchange)
 
-    exchanges_dump = [history.get_history() for history in exchanges]
-    json.dump(exchanges_dump, output_name, indent=4)
-    args.o.close()
+    exchanges_dump = [history.get_history_list() for history in exchanges]
+    json.dump(exchanges_dump, output_name, indent=4) #args.o words in output_name's place for some reason
+    # args.o.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -120,4 +138,23 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Run pipeline
-    pipeline(args.i, args.o, num_conversations)
+    # pipeline(args.i, args.o, num_conversations)
+
+    j = [{'role': 'text_chunk', 'query': 'The sky is blue because of things.'},
+         {'role': 'student', 'query': 'Why is the sky blue?'},
+         {'role': 'teacher', 'query': 'Could it be the angle of the sun?'},
+         {'role': 'student', 'query': 'Perhaps the blue light is spread by the atmosphere giving it a blue tint.'},
+         {'role': 'teacher', 'query': "Exactly! That's also the reason the sky turns orange during sunrise and sunset."}]
+    k = [{'role': 'text_chunk', 'query': 'Pineapple.'}, {'role': 'student', 'query': 'Why fruit?'},
+         {'role': 'teacher', 'query': 'Delicious, no?'}, {'role': 'student', 'query': 'True!'},
+         {'role': 'teacher', 'query': "Amen."}]
+
+    l = ChatHistory.from_history(j)
+    m = ChatHistory.from_history(k)
+
+    print(l.get_history_list())
+    print(l.get_eval())
+    print(str(l))
+
+    n = [o.get_history_list() for o in [l, m]]
+    json.dump(n, args.o, indent=4)
