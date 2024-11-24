@@ -15,14 +15,11 @@ def gen_seed_topic(text_chunk:str) -> str:
 class StudentNode:
     children:List["TeacherNode"]
     question:str
-    seed:str
     parent:Optional["TeacherNode"]
-    def __init__(self, seed: str, parent:Optional["TeacherNode"], question: str):
-        self.seed = seed
+    def __init__(self, parent:Optional["TeacherNode"], question: str):
         self.parent = parent
         self.question = question
         self.children = []
-        # super().__init__(seed=seed, parent=parent, question=question, children=self.children)
 
     def query(self) -> "TeacherNode":
         query = qt.openai_gen_teacher_response(self.history())
@@ -30,11 +27,15 @@ class StudentNode:
         self.children.append(teacher_node)
         return teacher_node
 
-    def seed(self) -> str:
-        ...
+    def get_seed(self) -> str:
+        seed = self.parent.get_seed()
+        return seed
     def history(self) -> str:
         # Traverse the tree and generate the history
-        return ""
+        node_str = f"Student: {self.question}\n"
+        parent_str = self.parent.history()
+        history_str = parent_str + "\n" + node_str
+        return history_str
 
     def to_dict(self) -> dict[str, Any]:
         return {'role': "student", "question": self.question,
@@ -43,15 +44,43 @@ class StudentNode:
     def from_dict(cls, d: dict[str,Any], parent: Optional["TeacherNode"]) -> "StudentNode":
         assert d["role"] == 'student'
         question = d["question"]
-        if parent is None:
-            seed = question
-        student_node = StudentNode("", parent, question)
+        student_node = StudentNode(parent, question)
         children = [TeacherNode.from_dict(child, student_node) for child in d["children"]]
         student_node.children.extend(children)
         return student_node
 
 class StudentRootNode(StudentNode):
     seed:str
+    text_chunk:str
+
+    def __init__(self, text_chunk:str, question: str):
+        super().__init__(parent=None, question=question)
+        self.seed = question
+        self.text_chunk = text_chunk
+        self.question = question
+        self.children = []
+
+    def history(self) -> str:
+        # Traverse the tree and generate the history
+        history_str = f"Student: {self.question}\n"
+        return history_str
+
+    def get_seed(self) -> str:
+        return self.seed
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"text_chunk": self.text_chunk, "role": "student",
+                "question": self.question, "children": [child.to_dict() for child in self.children]}
+
+    @classmethod
+    def from_dict(cls, d: dict[str,Any], parent: Optional["TeacherNode"]) -> "StudentRootNode":
+        assert "text_chunk" in d
+        text_chunk = d["text_chunk"]
+        question = d["question"]
+        student_root_node = StudentRootNode(text_chunk, question)
+        children = [TeacherNode.from_dict(child, student_root_node) for child in d["children"]]
+        student_root_node.children.extend(children)
+        return student_root_node
 
 class TeacherNode:
     children:List[StudentNode]
@@ -65,15 +94,22 @@ class TeacherNode:
 
     def history(self) -> str:
         # Traverse the tree and generate the history
-        return ""
+        node_str = f"Teacher: {self.reply}\n"
+        parent_str = self.parent.history()
+        history_str = parent_str + "\n" + node_str
+        return history_str
     def query(self) -> StudentNode:
-        query = qt.openai_gen_student_response(self.parent.seed, self.history())
-        student_node = StudentNode(seed=self.parent.seed, parent=self, question=query)
+        query = qt.openai_gen_student_response(self.get_seed(), self.history())
+        student_node = StudentNode(parent=self, question=query)
         self.children.append(student_node)
         return student_node
 
     def to_dict(self) -> dict[str, Any]:
         return {"role": "teacher", "reply": self.reply, "children": [child.to_dict() for child in self.children]}
+
+    def get_seed(self) -> str:
+        seed = self.parent.get_seed()
+        return seed
 
     @classmethod
     def from_dict(cls, d: dict[str,Any], parent: StudentNode) -> "TeacherNode":
