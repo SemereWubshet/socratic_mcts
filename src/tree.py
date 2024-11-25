@@ -148,124 +148,124 @@ class TeacherNode:
 
 
 
-
-class ChatHistory:
-    """The history will store a sequence of student and teacher queries."""
-    def __init__(self):
-        self.history = []
-
-    # Add at the beginning
-    def add_text_chunk(self, query:str) -> None:
-        self.history.append({'role': 'text_chunk', 'query': query})
-    def add_student(self, query:str) -> None:
-        self.history.append({'role': 'student', 'query': query})
-    def add_teacher(self, query:str) -> None:
-        self.history.append({'role': 'teacher', 'query': query})
-
-    # Add at the end
-    def add_eval(self, query:int) -> None:
-        self.history.append({'role': 'evaluation', 'query': query})
-    def get_history_list(self) -> list:
-        return self.history
-    def __str__(self) -> str:
-        history_str = []
-        for entry in self.history[1:-1]:
-            role = entry['role']
-            query = entry['query']
-            history_str.append(f"{role.capitalize()}: {query}")
-        return "\n".join(history_str)
-    def is_empty(self) -> bool:
-        return len(self.history) == 0
-    def get_text_chunk(self) -> str:
-        return self.history[0]["query"]
-    def get_seed(self) -> str:
-        return self.history[1]["query"]
-    def get_eval(self) -> str:
-        if self.history[-1]['role'] == 'evaluation':
-            return self.history[-1]["query"]
-        else:
-            return ""
-
-    @classmethod
-    def from_history(cls, exchanges: list) -> 'ChatHistory':
-        """Regenerate a ChatHistory object from a string representation of exchanges."""
-        chat_history = cls()  # Create a new instance of ChatHistory
-
-        for entry in exchanges:
-            if entry['role'] == 'text_chunk':
-                chat_history.add_text_chunk(entry['query'])
-            elif entry['role'] == 'student':
-                chat_history.add_student(entry['query'])
-            elif entry['role'] == 'teacher':
-                chat_history.add_teacher(entry['query'])
-            elif entry['role'] == 'evaluation':
-                chat_history.add_eval(entry['query'])
-
-        return chat_history
-
-def teacher(history:ChatHistory) -> str:
-    """Generate teacher response based on history"""
-    teacher_response = qt.openai_gen_teacher_response(str(history))
-    return teacher_response
-
-def student(seed:str, history:ChatHistory) -> str:
-    """Generate student response based on seed and history"""
-    if history.is_empty():
-        student_response = qt.openai_gen_soc_question(seed)
-    else:
-        student_response = qt.openai_gen_student_response(seed, str(history))
-
-    return student_response
-
-
-def judge(history:ChatHistory) -> int:
-    """Judge whether the teacher displayed correct Socratic behavior"""
-    seed = history.get_seed()
-    text_chunk = history.get_text_chunk()
-    history_str = str(history)
-    judge_response = qt.openai_gen_judge(seed, text_chunk, history_str) # Using open_ai at the moment
-    return judge_response
-
-def generate_exchanges(seed:str, text_chunk:str, history:ChatHistory, tree_width:int, tree_depth:int) -> list:
-    """Generate iter Socratic responses by the teacher"""
-    if tree_depth == 0:
-        return []
-
-    student_query = student(seed, history)
-
-    exchanges = []
-    for _ in range(tree_width): # Multiple teacher responses
-        new_history = copy.deepcopy(history)
-        new_history.add_student(student_query)  # Student response
-
-        teacher_query = teacher(new_history)  # Teacher response
-        new_history.add_teacher(teacher_query)
-        result = judge(seed, text_chunk, new_history) # Judge verdict
-
-        # Additional to global variables
-        tree_list.append(new_history)
-        results_list.append(result)
-
-        item_histories = generate_exchanges(seed, text_chunk, new_history, tree_width, tree_depth - 1)
-        exchanges.append({'history': new_history, 'result': result, 'children': item_histories}) # Nested dictionary
-
-    return exchanges
-
-def split_into_chunks(text, chunk_size):
-    """Split a given text file into manageable pieces"""
-    # Split text into chunks of size chunk_size
-    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
-
-def pipeline(input_name:TextIO, output_name:TextIO, tree_width:int, tree_depth:int) -> None:
-    """Assemble tools to build a Socratic pedagogical dialogue"""
-    contents = input_name.read()
-    text_chunks = split_into_chunks(contents, chunk_size)
-    master_collection = []
-    for text_chunk in text_chunks:
-        seed = gen_seed_topic(text_chunk)
-        history = ChatHistory()
-        tree_dict = generate_exchanges(seed, text_chunk, history, tree_width, tree_depth)
-        master_collection.append(tree_dict)
+#
+# class ChatHistory:
+#     """The history will store a sequence of student and teacher queries."""
+#     def __init__(self):
+#         self.history = []
+#
+#     # Add at the beginning
+#     def add_text_chunk(self, query:str) -> None:
+#         self.history.append({'role': 'text_chunk', 'query': query})
+#     def add_student(self, query:str) -> None:
+#         self.history.append({'role': 'student', 'query': query})
+#     def add_teacher(self, query:str) -> None:
+#         self.history.append({'role': 'teacher', 'query': query})
+#
+#     # Add at the end
+#     def add_eval(self, query:int) -> None:
+#         self.history.append({'role': 'evaluation', 'query': query})
+#     def get_history_list(self) -> list:
+#         return self.history
+#     def __str__(self) -> str:
+#         history_str = []
+#         for entry in self.history[1:-1]:
+#             role = entry['role']
+#             query = entry['query']
+#             history_str.append(f"{role.capitalize()}: {query}")
+#         return "\n".join(history_str)
+#     def is_empty(self) -> bool:
+#         return len(self.history) == 0
+#     def get_text_chunk(self) -> str:
+#         return self.history[0]["query"]
+#     def get_seed(self) -> str:
+#         return self.history[1]["query"]
+#     def get_eval(self) -> str:
+#         if self.history[-1]['role'] == 'evaluation':
+#             return self.history[-1]["query"]
+#         else:
+#             return ""
+#
+#     @classmethod
+#     def from_history(cls, exchanges: list) -> 'ChatHistory':
+#         """Regenerate a ChatHistory object from a string representation of exchanges."""
+#         chat_history = cls()  # Create a new instance of ChatHistory
+#
+#         for entry in exchanges:
+#             if entry['role'] == 'text_chunk':
+#                 chat_history.add_text_chunk(entry['query'])
+#             elif entry['role'] == 'student':
+#                 chat_history.add_student(entry['query'])
+#             elif entry['role'] == 'teacher':
+#                 chat_history.add_teacher(entry['query'])
+#             elif entry['role'] == 'evaluation':
+#                 chat_history.add_eval(entry['query'])
+#
+#         return chat_history
+#
+# def teacher(history:ChatHistory) -> str:
+#     """Generate teacher response based on history"""
+#     teacher_response = qt.openai_gen_teacher_response(str(history))
+#     return teacher_response
+#
+# def student(seed:str, history:ChatHistory) -> str:
+#     """Generate student response based on seed and history"""
+#     if history.is_empty():
+#         student_response = qt.openai_gen_soc_question(seed)
+#     else:
+#         student_response = qt.openai_gen_student_response(seed, str(history))
+#
+#     return student_response
+#
+#
+# def judge(history:ChatHistory) -> int:
+#     """Judge whether the teacher displayed correct Socratic behavior"""
+#     seed = history.get_seed()
+#     text_chunk = history.get_text_chunk()
+#     history_str = str(history)
+#     judge_response = qt.openai_gen_judge(seed, text_chunk, history_str) # Using open_ai at the moment
+#     return judge_response
+#
+# def generate_exchanges(seed:str, text_chunk:str, history:ChatHistory, tree_width:int, tree_depth:int) -> list:
+#     """Generate iter Socratic responses by the teacher"""
+#     if tree_depth == 0:
+#         return []
+#
+#     student_query = student(seed, history)
+#
+#     exchanges = []
+#     for _ in range(tree_width): # Multiple teacher responses
+#         new_history = copy.deepcopy(history)
+#         new_history.add_student(student_query)  # Student response
+#
+#         teacher_query = teacher(new_history)  # Teacher response
+#         new_history.add_teacher(teacher_query)
+#         result = judge(seed, text_chunk, new_history) # Judge verdict
+#
+#         # Additional to global variables
+#         tree_list.append(new_history)
+#         results_list.append(result)
+#
+#         item_histories = generate_exchanges(seed, text_chunk, new_history, tree_width, tree_depth - 1)
+#         exchanges.append({'history': new_history, 'result': result, 'children': item_histories}) # Nested dictionary
+#
+#     return exchanges
+#
+# def split_into_chunks(text, chunk_size):
+#     """Split a given text file into manageable pieces"""
+#     # Split text into chunks of size chunk_size
+#     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+#
+# def pipeline(input_name:TextIO, output_name:TextIO, tree_width:int, tree_depth:int) -> None:
+#     """Assemble tools to build a Socratic pedagogical dialogue"""
+#     contents = input_name.read()
+#     text_chunks = split_into_chunks(contents, chunk_size)
+#     master_collection = []
+#     for text_chunk in text_chunks:
+#         seed = gen_seed_topic(text_chunk)
+#         history = ChatHistory()
+#         tree_dict = generate_exchanges(seed, text_chunk, history, tree_width, tree_depth)
+#         master_collection.append(tree_dict)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -274,19 +274,61 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Pipeline parameters
-    tree_width = 1 # Width of  conversation tree
-    tree_depth = 1 # Depth of conversation tree
-    chunk_size = 80000 # Chunk size of splits in the input file
+    import google.generativeai as genai
+    import os
+    # Access the API key from the environment variable
+    api_key = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
-    tree_list = [] # Global list of conversations
-    results_list = [] # Global list of conversations
-    pipeline(args.i, args.o, tree_width, tree_depth)
+    # Configure the API key
+    genai.configure(api_key=api_key)
 
-    tree_dump = [history.get_history() for history in tree_list]
-    print(tree_dump)
-    json.dump(tree_dump, args.o, indent=4)
+    model_name = "gemini-1.5-flash"  # Choose the appropriate model name (check Gemini documentation)
+    model = genai.GenerativeModel(model_name)
+    # response = model.generate_content("The opposite of hot is")
+    # print(response.text)
 
-    for result in results_list:
-        with open('datasets/' + 'results.txt', 'w') as f:
-            f.write("\n ===== " + result)
+    # prompt = f"Topic: {seed}\n{history}"  # Combine topic and history into a single prompt
+
+    messages = [{'role':'system', 'parts': ['You are a chicken which quacks like duck.']},
+                [{'role':'user', 'parts': ['How are you my sweet chicken? Did you lay eggs?']}]]
+
+    prompt = 'How are you my sweet chicken? Did you lay eggs?'
+    chicken_role = 'You are a chicken which quacks like duck.'
+    response = model.generate_content(f"You will play this role: {chicken_role} \n"
+                                      f"As you play this role a person says {prompt}")
+    #                                   , role_play=[
+    #     {"role": "system", "content": chicken_role}  # Teacher role play
+    # ])
+    print(response.text)
+
+    # >>> messages = [{'role':'user', 'parts': ['hello']}]
+    # >>> response = model. generate_content(messages) # "Hello, how can I help"
+    # >>> messages. append(response. candidates[0].content)
+    # >>> messages. append({'role':'user', 'parts': ['How does quantum physics work?']})
+    # >>> response = model. generate_content(messages
+
+
+    #     prompt, role_play=[
+    #     {"role": "system", "content": student_role},  # Optional role play for student
+    # ])
+
+    student_response = response.text
+
+    print("hello")
+
+    # # Pipeline parameters
+    # tree_width = 1 # Width of  conversation tree
+    # tree_depth = 1 # Depth of conversation tree
+    # chunk_size = 80000 # Chunk size of splits in the input file
+    #
+    # tree_list = [] # Global list of conversations
+    # results_list = [] # Global list of conversations
+    # pipeline(args.i, args.o, tree_width, tree_depth)
+    #
+    # tree_dump = [history.get_history() for history in tree_list]
+    # print(tree_dump)
+    # json.dump(tree_dump, args.o, indent=4)
+    #
+    # for result in results_list:
+    #     with open('datasets/' + 'results.txt', 'w') as f:
+    #         f.write("\n ===== " + result)
