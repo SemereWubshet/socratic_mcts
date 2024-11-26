@@ -4,7 +4,7 @@ Your output shall be a single digit either a 1 for success or -1 for failure.
 Your output shall not have any introduction, question numbers or quotes.
 You shall never output anything other than a single number.
 
-I will give you the overall topic, the initial student seed topic, and the conversation between a teacher and a student.
+I will give you the overall topic, the initial student seed question, and the conversation between a teacher and a student.
 I want to you judge whether the conversation followed the socratic behaviour.
 This means the teacher should not reveal immediately the right answer. But should guide the student towards it by asking questions.
 A teacher succeeds when she

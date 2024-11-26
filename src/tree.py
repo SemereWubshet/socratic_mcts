@@ -1,8 +1,6 @@
 import argparse
 import random
 import json
-import pathlib
-import copy
 from typing import TextIO, List, Optional, Any, Union
 
 
@@ -34,6 +32,11 @@ class StudentNode:
     def get_seed(self) -> str:
         seed = self.parent.get_seed()
         return seed
+
+    def get_text_chunk(self)-> str:
+        text_chunk = self.parent.get_text_chunk()
+        return text_chunk
+
     def history(self) -> str:
         # Traverse the tree and generate the history
         node_str = f"Student: {self.question}\n"
@@ -68,6 +71,9 @@ class StudentRootNode(StudentNode):
         # Traverse the tree and generate the history
         history_str = f"Student: {self.question}\n"
         return history_str
+
+    def get_text_chunk(self)-> str:
+        return self.text_chunk
 
     def get_seed(self) -> str:
         return self.seed
@@ -106,13 +112,17 @@ class TeacherNode:
         return history_str
 
     def query(self) -> StudentNode:
-        query = qt.ollama_gen_student_response(self.get_seed(), self.history())
+        query = qt.ollama_gen_student_response(self.get_text_chunk(), self.get_seed(), self.history())
         student_node = StudentNode(parent=self, question=query)
         self.children.append(student_node)
         return student_node
 
     def to_dict(self) -> dict[str, Any]:
         return {"role": "teacher", "reply": self.reply, "score": self.score, "children": [child.to_dict() for child in self.children]}
+
+    def get_text_chunk(self)-> str:
+        text_chunk = self.parent.get_text_chunk()
+        return text_chunk
 
     def get_seed(self) -> str:
         seed = self.parent.get_seed()
@@ -181,16 +191,14 @@ if __name__ == "__main__":
     # Pipeline parameters
     num_trees = 3 # Number of trees generated
     tree_width = 3 # Width of  conversation tree
-    tree_depth = 1 # Depth of conversation tree
+    tree_depth = 3 # Depth of conversation tree
     chunk_size = 1000 # Chunk size of splits in the input file
 
     pipeline(args.i, args.o, num_trees, tree_width, tree_depth)
 
-    # chunk = "In the Middle Ages, liberal arts were taught in European universities as part of the Trivium, an introductory curriculum involving grammar, rhetoric, and logic, and of the Quadrivium, a curriculum involving the \"mathematical arts\" of arithmetic, geometry, music, and astronomy."
-    # student0 = StudentRootNode(chunk, "What types of liberal studies did they have in the middle ages?")
-
-    # gen_tree(student0, 2, 2)
-    # cake = student0.to_dict()
-    # print(cake)
-    # json.dump([cake, ], args.o, indent=4)
-    # args.o.close()
+    """
+    Load the tree
+    tree_list = json.load(args.o) # args.o is now write so this won't work
+    student0 = StudentRootNode.from_dict(tree_list[0], parent=None)
+    print(student0.to_dict())
+    """

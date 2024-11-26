@@ -6,10 +6,10 @@ import query_tools as qt
 
 
 # Remove this function: I can just qt.ollama_gen_seed() directly
-def gen_seed_topic(text_chunk:str) -> str:
+def gen_seed_question(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
-    seed_topic = qt.ollama_gen_seed(text_chunk)
-    return seed_topic
+    seed_question = qt.ollama_gen_soc_question(text_chunk)
+    return seed_question
 
 
 class ChatHistory:
@@ -80,14 +80,9 @@ def teacher(history:ChatHistory) -> str:
     return teacher_response
 
 
-def student(seed_topic:str, history:ChatHistory) -> str:
+def student(text_chunk:str, seed_question:str, history:ChatHistory) -> str:
     """Generate student response based on seed and history"""
-    if len(history.history) == 1: # History only contains the text chunk
-        student_response = qt.ollama_gen_soc_question(seed_topic)
-    else:
-        student_response = qt.ollama_gen_student_response(seed_topic, str(history))
-    # print("I'm student response!")
-    # print(student_response)
+    student_response = qt.ollama_gen_student_response(text_chunk, seed_question, str(history))
     return student_response
 
 
@@ -98,18 +93,22 @@ def judge(seed_topic:str, text_chunk:str, history:ChatHistory) -> int:
 
 def generate_exchange(text_chunk:str) -> ChatHistory:
     """Generate Socratic dialogue between a student and a teacher"""
-    seed_topic = gen_seed_topic(text_chunk)
-    print(seed_topic)
+    seed_question = gen_seed_question(text_chunk)
+    print(seed_question)
     history = ChatHistory()
     history.add_text_chunk(text_chunk)
+    history.add_student(seed_question)
 
-    for _ in range(depth):
+    for _ in range(depth - 1):
         print(f"\nNew: \n{str(history)}\n")
-        student_query = student(seed_topic, history)
-        history.add_student(student_query)
-
         teacher_query = teacher(history)
         history.add_teacher(teacher_query)
+
+        student_query = student(text_chunk, seed_question, history)
+        history.add_student(student_query)
+
+    teacher_query = teacher(history)
+    history.add_teacher(teacher_query)
 
     return history
 
@@ -142,9 +141,9 @@ if __name__ == "__main__":
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
 
     # Attributes of socratic conversations
-    depth = 10 # Depth of conversations
+    depth = 3 # Depth of conversations
     chunk_size = 1000 # Chunk size of splits in input file
-    num_conversations = 1 # Number of conversations
+    num_conversations = 3 # Number of conversations
     args = parser.parse_args()
 
     # Run pipeline
