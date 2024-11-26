@@ -2,9 +2,6 @@ import argparse
 import json
 import random
 from typing import TextIO
-
-from pydantic import NonNegativeFloat
-
 import query_tools as qt
 
 
@@ -39,6 +36,10 @@ class ChatHistory:
             role = entry['role']
             query = entry['query']
             history_str.append(f"{role.capitalize()}: {query}")
+        if self.history[-1]['role'] != 'evaluation' and self.history[-1]['role'] != 'text_chunk':
+            role = self.history[-1]['role']
+            query = self.history[-1]['query']
+            history_str.append(f"{role.capitalize()}: {query}")
         return "\n".join(history_str)
     def is_empty(self) -> bool:
         return len(self.history) == 0
@@ -71,32 +72,40 @@ class ChatHistory:
 
 def teacher(history:ChatHistory) -> str:
     """Generate teacher response based on history"""
+    # print(history.history)
+    # print(history.history[-1])
     teacher_response = qt.ollama_gen_teacher_response(str(history))
+    # print("I'm teacher response!")
+    # print(teacher_response)
     return teacher_response
 
-def student(seed:str, history:ChatHistory) -> str:
-    """Generate student response based on seed and history"""
-    if history.is_empty():
-        student_response = qt.ollama_gen_soc_question(seed)
-    else:
-        student_response = qt.ollama_gen_student_response(seed, str(history))
 
+def student(seed_topic:str, history:ChatHistory) -> str:
+    """Generate student response based on seed and history"""
+    if len(history.history) == 1: # History only contains the text chunk
+        student_response = qt.ollama_gen_soc_question(seed_topic)
+    else:
+        student_response = qt.ollama_gen_student_response(seed_topic, str(history))
+    # print("I'm student response!")
+    # print(student_response)
     return student_response
 
 
-def judge(seed:str, text_chunk:str, history:ChatHistory) -> int:
+def judge(seed_topic:str, text_chunk:str, history:ChatHistory) -> int:
     """Judge whether the teacher displayed correct Socratic behavior"""
-    judge_response = qt.ollama_judge(seed, text_chunk, str(history))
+    judge_response = qt.ollama_judge(seed_topic, text_chunk, str(history))
     return judge_response
 
 def generate_exchange(text_chunk:str) -> ChatHistory:
     """Generate Socratic dialogue between a student and a teacher"""
-    seed = gen_seed_topic(text_chunk)
+    seed_topic = gen_seed_topic(text_chunk)
+    print(seed_topic)
     history = ChatHistory()
     history.add_text_chunk(text_chunk)
 
     for _ in range(depth):
-        student_query = student(seed, history)
+        print(f"\nNew: \n{str(history)}\n")
+        student_query = student(seed_topic, history)
         history.add_student(student_query)
 
         teacher_query = teacher(history)
@@ -122,6 +131,7 @@ def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> 
         exchange = generate_exchange(text_chunk)
         exchanges.append(exchange)
 
+
     exchanges_dump = [history.get_history_list() for history in exchanges]
     json.dump(exchanges_dump, output_name, indent=4) #args.o words in output_name's place for some reason
     # args.o.close()
@@ -132,29 +142,29 @@ if __name__ == "__main__":
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
 
     # Attributes of socratic conversations
-    depth = 1 # Depth of conversations
-    chunk_size = 5000 # Chunk size of splits in input file
-    num_conversations = 5 # Number of conversations
+    depth = 10 # Depth of conversations
+    chunk_size = 1000 # Chunk size of splits in input file
+    num_conversations = 1 # Number of conversations
     args = parser.parse_args()
 
     # Run pipeline
-    # pipeline(args.i, args.o, num_conversations)
+    pipeline(args.i, args.o, num_conversations)
 
-    j = [{'role': 'text_chunk', 'query': 'The sky is blue because of things.'},
-         {'role': 'student', 'query': 'Why is the sky blue?'},
-         {'role': 'teacher', 'query': 'Could it be the angle of the sun?'},
-         {'role': 'student', 'query': 'Perhaps the blue light is spread by the atmosphere giving it a blue tint.'},
-         {'role': 'teacher', 'query': "Exactly! That's also the reason the sky turns orange during sunrise and sunset."}]
-    k = [{'role': 'text_chunk', 'query': 'Pineapple.'}, {'role': 'student', 'query': 'Why fruit?'},
-         {'role': 'teacher', 'query': 'Delicious, no?'}, {'role': 'student', 'query': 'True!'},
-         {'role': 'teacher', 'query': "Amen."}]
-
-    l = ChatHistory.from_history(j)
-    m = ChatHistory.from_history(k)
-
-    print(l.get_history_list())
-    print(l.get_eval())
-    print(str(l))
-
-    n = [o.get_history_list() for o in [l, m]]
-    json.dump(n, args.o, indent=4)
+    # j = [{'role': 'text_chunk', 'query': 'The sky is blue because of things.'},
+    #      {'role': 'student', 'query': 'Why is the sky blue?'},
+    #      {'role': 'teacher', 'query': 'Could it be the angle of the sun?'},
+    #      {'role': 'student', 'query': 'Perhaps the blue light is spread by the atmosphere giving it a blue tint.'},
+    #      {'role': 'teacher', 'query': "Exactly! That's also the reason the sky turns orange during sunrise and sunset."}]
+    # k = [{'role': 'text_chunk', 'query': 'Pineapple.'}, {'role': 'student', 'query': 'Why fruit?'},
+    #      {'role': 'teacher', 'query': 'Delicious, no?'}, {'role': 'student', 'query': 'True!'},
+    #      {'role': 'teacher', 'query': "Amen."}]
+    #
+    # l = ChatHistory.from_history(j)
+    # m = ChatHistory.from_history(k)
+    #
+    # print(l.get_history_list())
+    # print(l.get_eval())
+    # print(str(l))
+    #
+    # n = [o.get_history_list() for o in [l, m]]
+    # json.dump(n, args.o, indent=4)

@@ -63,7 +63,7 @@ def openai_gen_teacher_response(content):
 def openai_gen_judge(text_chunk, seed, history):
     client = OpenAI()
     content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed +
+               "\n Seed topic: " + seed +
                "\n Conversation History: " + history)
     response = client.chat.completions.create(
         model="gpt-4o-mini",
@@ -99,14 +99,17 @@ def ollama_gen_student_response(seed, history):
 
 def ollama_gen_teacher_response(content):
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
+    # print("\nTeacher role \n", teacher_role)
+    # print("\nContent \n", content)
     response = client.chat(model="llama3.1", messages=[{"role": "system", "content": teacher_role},
                                                        {"role": "user", "content": content}])
     teacher_response = response["message"]["content"]
+    # print("\nTeacher response \n", teacher_response)
     return teacher_response
 
 def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed +
+               "\n Seed topic: " + seed +
                "\n Conversation History: " + history)
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
     response = client.chat(model="llama3.1", messages=[{"role": "system", "content": judge_role},
@@ -159,7 +162,7 @@ def openai_gen_teacher_response(content):
 def openai_gen_judge(text_chunk, seed, history):
     client = OpenAI()
     content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed +
+               "\n Seed topic: " + seed +
                "\n Conversation History: " + history)
     response = client.chat.completions.create(
         model="gpt-4o-mini",

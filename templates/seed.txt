@@ -1,6 +1,7 @@
 Given the text below, you shall generate a seed topic.
+The seed topic must be a short concise statement that summarizes the text below.
 You will summarize the content without adding any new information.
-Your output must be clear and understandable.
-It should avoid being excessively wordy.
+Your output must be short, clear, and understandable.
+Your output shall not be wordy.
 You shall output only what is requested without adding any other content.
 Do not include any introductory statements or quotes in your response.

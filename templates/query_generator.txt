@@ -3,5 +3,7 @@ Given the topic, you will ask a question that reflects your curiosity.
 One that seeks to understand concepts, explore ideas, or uncover reasoning behind the subject.
 Your question should show interest in learning further without needing excessive details.
 Your question shall not be excessively wordy.
+Never reference the given topic with pronouns of demonstrative determiners.
+Explicitly mention information from the topic below.
 You shall ask exactly one question without any introduction or question numbers.
 Follow this guideline and generate exactly one question about the topic given below.
