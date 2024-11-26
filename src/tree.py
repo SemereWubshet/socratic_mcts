@@ -11,10 +11,10 @@ from typing import TextIO, List, Optional, Any, Union
 import query_tools as qt
 
 
-def gen_seed_topic(text_chunk:str) -> str:
-    """Call to llm to generate a specific seed topic given a chunk"""
-    seed_topic = qt.ollama_gen_seed(text_chunk)
-    return seed_topic
+def gen_seed_question(text_chunk:str) -> str:
+    """Call to llm to generate a specific seed question given a chunk"""
+    seed_question = qt.ollama_gen_soc_question(text_chunk)
+    return seed_question
 
 class StudentNode:
     children:List["TeacherNode"]
@@ -161,7 +161,7 @@ def pipeline(input_name:TextIO, output_name:TextIO, num_trees:int, tree_width:in
     tree_collection = []
     tree_collection_dump = []
     for index in range(num_trees):
-        seed = gen_seed_topic(text_chunks[index])
+        seed = gen_seed_question(text_chunks[index])
         student_root_node = StudentRootNode(text_chunks[index], seed)
         gen_tree(student_root_node, tree_width, tree_depth)
 
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Pipeline parameters
-    num_trees = 2 # Number of trees generated
+    num_trees = 3 # Number of trees generated
     tree_width = 3 # Width of  conversation tree
     tree_depth = 1 # Depth of conversation tree
     chunk_size = 1000 # Chunk size of splits in the input file
