@@ -186,8 +186,8 @@ if __name__ == "__main__":
 
     pipeline(args.i, args.o, num_trees, tree_width, tree_depth)
 
-    chunk = "In the Middle Ages, liberal arts were taught in European universities as part of the Trivium, an introductory curriculum involving grammar, rhetoric, and logic, and of the Quadrivium, a curriculum involving the \"mathematical arts\" of arithmetic, geometry, music, and astronomy."
-    student0 = StudentRootNode(chunk, "What types of liberal studies did they have in the middle ages?")
+    # chunk = "In the Middle Ages, liberal arts were taught in European universities as part of the Trivium, an introductory curriculum involving grammar, rhetoric, and logic, and of the Quadrivium, a curriculum involving the \"mathematical arts\" of arithmetic, geometry, music, and astronomy."
+    # student0 = StudentRootNode(chunk, "What types of liberal studies did they have in the middle ages?")
 
     # gen_tree(student0, 2, 2)
     # cake = student0.to_dict()
