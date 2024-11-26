@@ -72,11 +72,7 @@ class ChatHistory:
 
 def teacher(history:ChatHistory) -> str:
     """Generate teacher response based on history"""
-    # print(history.history)
-    # print(history.history[-1])
     teacher_response = qt.ollama_gen_teacher_response(str(history))
-    # print("I'm teacher response!")
-    # print(teacher_response)
     return teacher_response
 
 
@@ -94,13 +90,11 @@ def judge(seed_topic:str, text_chunk:str, history:ChatHistory) -> int:
 def generate_exchange(text_chunk:str) -> ChatHistory:
     """Generate Socratic dialogue between a student and a teacher"""
     seed_question = gen_seed_question(text_chunk)
-    print(seed_question)
     history = ChatHistory()
     history.add_text_chunk(text_chunk)
     history.add_student(seed_question)
 
     for _ in range(depth - 1):
-        print(f"\nNew: \n{str(history)}\n")
         teacher_query = teacher(history)
         history.add_teacher(teacher_query)
 
@@ -141,14 +135,17 @@ if __name__ == "__main__":
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
 
     # Attributes of socratic conversations
-    depth = 3 # Depth of conversations
+    depth = 5 # Depth of conversations
     chunk_size = 1000 # Chunk size of splits in input file
-    num_conversations = 3 # Number of conversations
+    num_conversations = 10 # Number of conversations
     args = parser.parse_args()
 
     # Run pipeline
     pipeline(args.i, args.o, num_conversations)
 
+
+    """Tests
+    
     # j = [{'role': 'text_chunk', 'query': 'The sky is blue because of things.'},
     #      {'role': 'student', 'query': 'Why is the sky blue?'},
     #      {'role': 'teacher', 'query': 'Could it be the angle of the sun?'},
@@ -167,3 +164,5 @@ if __name__ == "__main__":
     #
     # n = [o.get_history_list() for o in [l, m]]
     # json.dump(n, args.o, indent=4)
+    
+    """
