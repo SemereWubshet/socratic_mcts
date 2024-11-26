@@ -1,51 +1,35 @@
-import copy
-class Car:
-    def __init__(self, a):
-        self.a = a
-    def add_student(self, b):
-        self.b = b
 
-jack = Car("lifan")
-print("jack ", jack.a)
-jork = copy.deepcopy(jack)
-jork.a = "abay"
-print("jack ", jack.a)
-print("jork ", jork.a)
+def gen_num(x:int, y:int) -> None:
+    if y == 0: return None
+    for index_x in range(x):
+        print("I'm index X: ", index_x)
+        print("I'm y: ", y)
+        gen_num(index_x, y-1)
+    return None
 
+l = []
+def gen_num2(x: int, y: int) -> None:
+    if y == 0: return None
+    for i in range(x):  # Iterate over the first range
+        for j in range(x):
+            print(f"{i}, {j}, {y}")
+            l.append((i,y))
+            gen_num2(x, y-1)
+    return None
 
-def generate_exchanges(seed, history:ChatHistory, iter:int, depth:int) -> list:
-    """Generate iter Socratic responses by the teacher"""
-    if depth == 0: return [0];
-    student_query = student(seed, history)
-    history.add_student(student_query) # Student response
+gen_num2(2, 2)
+print(len(l))
 
-    histories = []
+def gen_num3(x: int, y: int) -> None:
+    def helper(ix: int, max_x: int, max_y: int) -> None:
+        if ix >= max_x:  # Base case: stop when `ix` exceeds range
+            return
+        for jy in range(max_y + 1):  # Iterate through all `y` values
+            print(f"{ix}, {jy}")  # Print the current pair
+        helper(ix + 1, max_x, max_y)  # Recurse for the next value of `x`
 
-    for _ in range(iter): # Multiple teacher responses
-        new_history = copy.deepcopy(history)
-        teacher_query = teacher(new_history)
-
-        new_history.add_teacher(teacher_query)
-        item_histories = generate_exchanges(seed, new_history, iter, depth - 1)
-        histories.append(new_history)
-        histories.append(item_histories)
-
-    return histories
+    helper(0, x, y)  # Start recursion from `x = 0`
 
 
-    # Print the result
-    def print_tree(exchanges, level=0, history_number=1):
-        """Helper function to print the tree structure with tabs and numbering"""
-        for index, exchange in enumerate(exchanges, start=history_number):
-            print(" " * (level * 4) + f"History {index}:")  # Indentation with tabs for clarity
-            print(" " * (level * 4 + 2) + str(exchange['history']))  # Print the current history
 
-            if exchange['children']:  # If there are child histories, recurse
-                print(" " * (level * 4 + 2) + "Children:")
-                print_tree(exchange['children'], level + 1, history_number=index + 1)
-
-
-    # Now, you can run this function after generating the exchanges to display the tree clearly.
-
-    # Print the conversation tree
-    print_tree(exchanges)
+# gen_num3(2, 2)

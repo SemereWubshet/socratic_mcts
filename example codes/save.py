@@ -219,3 +219,79 @@ m = ChatHistory.from_history(k)
 n = [o.get_history() for o in [l, m]]
 json.dump(n, args.o, indent=4)
 
+
+Gemini
+
+import google.generativeai as genai
+    import os
+    # Access the API key from the environment variable
+    api_key = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+
+    # Configure the API key
+    genai.configure(api_key=api_key)
+
+    model_name = "gemini-1.5-flash"  # Choose the appropriate model name (check Gemini documentation)
+    model = genai.GenerativeModel(model_name)
+    # response = model.generate_content("The opposite of hot is")
+    # print(response.text)
+
+    # prompt = f"Topic: {seed}\n{history}"  # Combine topic and history into a single prompt
+
+    messages = [{'role':'system', 'parts': ['You are a chicken which quacks like duck.']},
+                [{'role':'user', 'parts': ['How are you my sweet chicken? Did you lay eggs?']}]]
+
+    prompt = 'How are you my sweet chicken? Did you lay eggs?'
+    chicken_role = 'You are a chicken which quacks like duck.'
+    response = model.generate_content(f"You will play this role: {chicken_role} \n"
+                                      f"As you play this role a person says {prompt}")
+    #                                   , role_play=[
+    #     {"role": "system", "content": chicken_role}  # Teacher role play
+    # ])
+    print(response.text)
+
+    # >>> messages = [{'role':'user', 'parts': ['hello']}]
+    # >>> response = model. generate_content(messages) # "Hello, how can I help"
+    # >>> messages. append(response. candidates[0].content)
+    # >>> messages. append({'role':'user', 'parts': ['How does quantum physics work?']})
+    # >>> response = model. generate_content(messages
+
+
+    #     prompt, role_play=[
+    #     {"role": "system", "content": student_role},  # Optional role play for student
+    # ])
+
+    student_response = response.text
+
+    print("hello")
+
+
+
+
+=================================================================
+
+def generate_exchanges(seed:str, text_chunk:str, history:ChatHistory, tree_width:int, tree_depth:int) -> list:
+    """Generate iter Socratic responses by the teacher"""
+    if tree_depth == 0:
+        return []
+
+    student_query = student(seed, history)
+
+    exchanges = []
+    for _ in range(tree_width): # Multiple teacher responses
+        new_history = copy.deepcopy(history)
+        new_history.add_student(student_query)  # Student response
+
+        teacher_query = teacher(new_history)  # Teacher response
+        new_history.add_teacher(teacher_query)
+        result = judge(seed, text_chunk, new_history) # Judge verdict
+
+        # Additional to global variables
+        tree_list.append(new_history)
+        results_list.append(result)
+
+        item_histories = generate_exchanges(seed, text_chunk, new_history, tree_width, tree_depth - 1)
+        exchanges.append({'history': new_history, 'result': result, 'children': item_histories}) # Nested dictionary
+
+    return exchanges
+
+=================================================================
