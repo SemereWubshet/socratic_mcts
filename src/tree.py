@@ -3,7 +3,8 @@ import random
 import json
 import pathlib
 import copy
-from typing import TextIO, List, Optional, Any
+from typing import TextIO, List, Optional, Any, Union
+
 
 # from pydantic import BaseModel
 
@@ -135,16 +136,23 @@ def split_into_chunks(text, chunk_size):
     random.shuffle(chunks) # Randomize chunks
     return chunks
 
+# x = StudentNode(parent=None, question="Who are you?")
+# print(type(x))
 
-def gen_tree(student_node:StudentNode, tree_width:int, tree_depth:int) -> None:
+def gen_tree(node: Union[StudentNode, TeacherNode], tree_width:int, tree_depth:int) -> None:
     if tree_depth == 0:
         return None
-    for width in range(tree_width):
-        teacher_node = student_node.query()
-        # Score teacher reply and save it here
+    if isinstance(node, StudentNode):
         for width in range(tree_width):
-            student_node = teacher_node.query()
-            gen_tree(student_node, tree_width, tree_depth-1)
+            teacher_node = node.query()
+            # Score teacher reply and save it here
+    if isinstance(node, TeacherNode):
+        for width in range(tree_width):
+            student_node = node.query()
+
+    for child_node in node.children:
+        gen_tree(child_node, tree_width, tree_depth-1)
+        ...
 
 def pipeline(input_name:TextIO, output_name:TextIO, num_trees:int, tree_width:int, tree_depth:int) -> None:
     """Assemble tools to build Socratic pedagogical dialogue trees"""
@@ -161,6 +169,7 @@ def pipeline(input_name:TextIO, output_name:TextIO, num_trees:int, tree_width:in
         tree_collection_dump.append(student_root_node.to_dict())
 
     json.dump(tree_collection_dump, output_name, indent=4)
+    output_name.close()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -170,18 +179,18 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Pipeline parameters
-    num_trees = 1 # Number of trees generated
-    tree_width = 1 # Width of  conversation tree
+    num_trees = 2 # Number of trees generated
+    tree_width = 3 # Width of  conversation tree
     tree_depth = 1 # Depth of conversation tree
-    chunk_size = 5000 # Chunk size of splits in the input file
+    chunk_size = 1000 # Chunk size of splits in the input file
 
-    # pipeline(args.i, args.o, num_trees, tree_width, tree_depth)
+    pipeline(args.i, args.o, num_trees, tree_width, tree_depth)
 
     chunk = "In the Middle Ages, liberal arts were taught in European universities as part of the Trivium, an introductory curriculum involving grammar, rhetoric, and logic, and of the Quadrivium, a curriculum involving the \"mathematical arts\" of arithmetic, geometry, music, and astronomy."
     student0 = StudentRootNode(chunk, "What types of liberal studies did they have in the middle ages?")
 
-    gen_tree(student0, 2, 2)
-    cake = student0.to_dict()
-    print(cake)
-    json.dump([cake, ], args.o, indent=4)
-    args.o.close()
+    # gen_tree(student0, 2, 2)
+    # cake = student0.to_dict()
+    # print(cake)
+    # json.dump([cake, ], args.o, indent=4)
+    # args.o.close()

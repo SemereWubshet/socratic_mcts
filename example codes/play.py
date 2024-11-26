@@ -33,3 +33,16 @@ def gen_num3(x: int, y: int) -> None:
 
 
 # gen_num3(2, 2)
+
+
+"""
+def gen_tree(student_node:StudentNode, tree_width:int, tree_depth:int) -> None:
+    if tree_depth == 0:
+        return None
+    for width in range(tree_width):
+        teacher_node = student_node.query()
+        # Score teacher reply and save it here
+        for width in range(tree_width):
+            student_node = teacher_node.query()
+            gen_tree(student_node, tree_width, tree_depth-1)
+"""
