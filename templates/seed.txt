@@ -1,7 +1,7 @@
-Given the text below, you shall generate a seed topic.
-The seed topic must be a short concise statement that summarizes the text below.
-You will summarize the content without adding any new information.
-Your output must be short, clear, and understandable.
-Your output shall not be wordy.
-You shall output only what is requested without adding any other content.
-Do not include any introductory statements or quotes in your response.
+You are a student trying to gain more understanding on a class topic. In particular, you read the following text passage:
+
+
+{context}
+
+
+You are about to interact with a teacher. Make a concise opening statement to start a conversation about. Your statement must be natural. {interaction_type}
