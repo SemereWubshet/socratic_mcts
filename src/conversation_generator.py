@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import json
 import random
 from typing import TextIO
@@ -106,16 +107,21 @@ def generate_exchange(text_chunk:str) -> ChatHistory:
 
     return history
 
-def split_into_chunks(text, chunk_size):
+def split_into_chunks(text, chunk_size=2000):
     """Split a given text file into manageable pieces"""
-    chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+    # chunks = [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+    topics = text.split("Title: ")  # To avoid having chunks with two distinct subjects
+    chunks=[]
+    for topic in topics:
+        for i in range(0, len(topic), chunk_size):
+            chunks.append(topic[i:i + chunk_size])
     random.shuffle(chunks) # Randomize chunks
     return chunks
 
 def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
     contents = input_name.read()
-    text_chunks = split_into_chunks(contents, chunk_size)
+    text_chunks = split_into_chunks(contents)#, chunk_size)
 
     exchanges = []
 
@@ -131,38 +137,14 @@ def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', required=True, help='', type=argparse.FileType('r'))
-    parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
+    parser.add_argument('-i', required=True, help='Input textual data on covered topics', type=argparse.FileType('r'))
+    parser.add_argument('-o', required=True, help='Output json dataset with student-teacher interactions', type=argparse.FileType('w'))
 
     # Attributes of socratic conversations
-    depth = 1 # Depth of conversations
-    chunk_size = 1000 # Chunk size of splits in input file
-    num_conversations = 5 # Number of conversations
+    depth = 10 # Depth of conversations
+    # chunk_size = 1000 # Chunk size of splits in input file
+    num_conversations = 1 # Number of conversations
     args = parser.parse_args()
 
     # Run pipeline
     pipeline(args.i, args.o, num_conversations)
-
-
-    """Tests
-    
-    # j = [{'role': 'text_chunk', 'query': 'The sky is blue because of things.'},
-    #      {'role': 'student', 'query': 'Why is the sky blue?'},
-    #      {'role': 'teacher', 'query': 'Could it be the angle of the sun?'},
-    #      {'role': 'student', 'query': 'Perhaps the blue light is spread by the atmosphere giving it a blue tint.'},
-    #      {'role': 'teacher', 'query': "Exactly! That's also the reason the sky turns orange during sunrise and sunset."}]
-    # k = [{'role': 'text_chunk', 'query': 'Pineapple.'}, {'role': 'student', 'query': 'Why fruit?'},
-    #      {'role': 'teacher', 'query': 'Delicious, no?'}, {'role': 'student', 'query': 'True!'},
-    #      {'role': 'teacher', 'query': "Amen."}]
-    #
-    # l = ChatHistory.from_history(j)
-    # m = ChatHistory.from_history(k)
-    #
-    # print(l.get_history_list())
-    # print(l.get_eval())
-    # print(str(l))
-    #
-    # n = [o.get_history_list() for o in [l, m]]
-    # json.dump(n, args.o, indent=4)
-    
-    """
