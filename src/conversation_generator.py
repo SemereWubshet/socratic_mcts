@@ -135,9 +135,9 @@ if __name__ == "__main__":
     parser.add_argument('-o', required=True, help='', type=argparse.FileType('w'))
 
     # Attributes of socratic conversations
-    depth = 5 # Depth of conversations
+    depth = 1 # Depth of conversations
     chunk_size = 1000 # Chunk size of splits in input file
-    num_conversations = 10 # Number of conversations
+    num_conversations = 5 # Number of conversations
     args = parser.parse_args()
 
     # Run pipeline

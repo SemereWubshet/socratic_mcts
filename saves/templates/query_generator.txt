@@ -1,0 +1,11 @@
+Given the piece of text below, these are your objectives:
+1. Extract major key-points necessary for comprehensive understanding.
+2. Once you have extracted the major keypoints. Assume that you are a student learning about the major key-points you developed in your first task. Generate an interaction with a teacher about the above text passage. Your interaction must apply to one of the following cases:
+
+  - demand deeper clarification about one of the major points thus requiring an investigation of the subpoints
+  - requesting further explanations that go beyond the original text
+  - act confused about one of the major points, thus requiring further explanation of subpoints
+  - make misleading claims due to misunderstanding on one or more of the subtopics
+  - demonstrate inability to connect major points
+
+Generate only a concise student interaction such it looks natural and seek to start a conversation about the given topic.
