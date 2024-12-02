@@ -17,12 +17,14 @@ To follow the Socratic method, the teacher must not
 - Ignoring students responses
 - Interacting with convoluted answers that confuses student
 
-Provide an output
+Your output must be
 
- - 1 if the teacher successfully covered the main topics while following the Socratic method and the student developed a deep understanding on the topic;
- - 0 if the teacher failed following the Socratic method at any point during the conversation, or he didn't cover most of the main topics, or the student did not develop a complete understanding on the subject.
+ - true if the teacher successfully covered the main topics while following the Socratic method and the student developed a deep understanding on the topic;
+ - false if the teacher failed following the Socratic method at any point during the conversation, or he didn't cover most of the main topics, or the student did not develop a complete understanding on the subject.
 
-Output a reasoning followed by the [ASSESSMENT] (1 or 0).
+Your output must be written according to the json following format:
+
+{"feedback": "(the reasoning of the evaluation)", "assessment" : true}
 
 
 Examples:
@@ -33,7 +35,7 @@ Importance of critical thinking.
 How assumptions can influence decisions.
 Techniques to evaluate assumptions.
 
-# Chat History
+# Chat history
 Student: Hi, I've been reading about the importance of critical thinking. Why is it so important to think critically about things we believe or assume?
 Teacher: Can you give an example where critical thinking helped you or could have helped you?
 Student: Maybe when I assumed something about a friend without asking them directly.
@@ -43,7 +45,7 @@ Teacher: Exactly. What do you think we can do to evaluate our assumptions before
 Student: Ask questions or look for evidence before deciding.
 Teacher: Great idea! Can you think of how you’d apply this next time?
 
-OUTPUT: The teacher engaged the student with open-ended questions, encouraged reflection, and explored the main topics thoroughly while fostering critical thinking. [ASSESSMENT] 1
+{"feedback": "The teacher engaged the student with open-ended questions, encouraged reflection, and explored the main topics thoroughly while fostering critical thinking." "assessment": true}
 
 
 
@@ -52,7 +54,7 @@ Importance of critical thinking.
 How assumptions can influence decisions.
 Techniques to evaluate assumptions.
 
-# Chat History
+# Chat history
 Student: Hi, I've been reading about the importance of critical thinking. Why is it so important to think critically about things we believe or assume?
 Teacher: Can you give an example where critical thinking helped you or could have helped you?
 Student: Maybe when I assumed something about a friend without asking them directly.
@@ -60,4 +62,4 @@ Teacher: Interesting. How would critical thinking helped you in this situation?
 Student: I could have avoided a pointless conflict.
 Teacher: Exactly. Critical thinking is necessary to avoid rushed actions. Maybe you should have excused to your friend? What you would do now that you can evaluate your own critical thinking capabilities? Can you think of how you’d apply this next time?
 
-OUTPUT: The teacher did not cover the main topics, in particular, about how assumptions influence decisions and the techniques to evaluate these assumptions. Furthermore, it gave confusing, convoluted questions with advices that are not addressing the main topic [ASSESSMENT] 0
+{"feedback": "The teacher did not cover the main topics, in particular, about how assumptions influence decisions and the techniques to evaluate these assumptions. Furthermore, it gave confusing, convoluted questions with advices that are not addressing the main topic.", "assessment": false}
