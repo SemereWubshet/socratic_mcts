@@ -57,5 +57,13 @@ if __name__ == "__main__":
     hist = [ChatHistory.from_history(c) for c in data]
 
     new_data = gen_dataset(hist)
+    new_new_data = []
+    for n in new_data:
+        new_new_data.append({"history": n["history"].history, "reason": n["reason"], "assessment": n["assessment"]})
+
+
+    # history = new_data[0].get_history_list()
+    with open("datasets/new_dataset.json", "w") as f:
+        json.dump(new_new_data, f, indent=4)
 
     pass

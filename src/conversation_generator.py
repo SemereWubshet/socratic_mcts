@@ -4,6 +4,10 @@ import json
 import random
 from typing import TextIO
 import query_tools as qt
+import json
+import pathlib
+from typing import Dict, List, Any
+import ollama
 
 
 # Remove this function: I can just qt.ollama_gen_seed() directly
@@ -83,10 +87,10 @@ def student(text_chunk:str, seed_question:str, history:ChatHistory) -> str:
     return student_response
 
 
-def judge(seed_topic:str, text_chunk:str, history:ChatHistory) -> int:
-    """Judge whether the teacher displayed correct Socratic behavior"""
-    judge_response = qt.ollama_judge(seed_topic, text_chunk, str(history))
-    return judge_response
+# def judge(seed_topic:str, text_chunk:str, history:ChatHistory) -> int:
+#     """Judge whether the teacher displayed correct Socratic behavior"""
+#     judge_response = qt.ollama_judge(seed_topic, text_chunk, str(history))
+#     return judge_response
 
 def generate_exchange(text_chunk:str) -> ChatHistory:
     """Generate Socratic dialogue between a student and a teacher"""
@@ -118,6 +122,75 @@ def split_into_chunks(text, chunk_size=2000):
     random.shuffle(chunks) # Randomize chunks
     return chunks
 
+###
+
+# def judge(history:ChatHistory) -> int:
+#     """Judge whether the teacher displayed correct Socratic behavior"""
+#     seed = history.get_seed()
+#     text_chunk = history.get_text_chunk()
+#     history_str = str(history)
+#     judge_response = qt.openai_gen_judge(seed, text_chunk, history_str) # Using open_ai at the moment
+#     return judge_response
+
+# def pipeline(input_name:TextIO, output_name:TextIO) -> None:
+#     all_conversations = json.load(input_name)
+#     # conversations_list = [ChatHistory.from_history(exchange) for exchange in all_conversations]
+#     conversations_list = []
+#     conversation_dump = []
+#     for conversation in all_conversations:
+#         history = ChatHistory.from_history(conversation)
+#         result = judge(history)
+#         history.add_eval(result)
+#         conversations_list.append(history)
+#         conversation_dump.append(history.get_history_list())
+#
+#     json.dump(conversation_dump, output_name, indent=4)
+
+def gen_dataset(conversations: List[ChatHistory]) -> List[Dict[str, Any]]:
+    client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
+
+    system_prompt = pathlib.Path("./templates/judge.txt").read_text(encoding="UTF-8")
+    answer_prompt = pathlib.Path("./templates/answer.txt").read_text(encoding="UTF-8")
+
+    dataset = []
+
+    for conversation in conversations:
+        text_chunk = conversation.get_text_chunk()
+        seed_question = conversation.get_seed()
+
+        content = answer_prompt.format(context=text_chunk, question=seed_question)
+
+        response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
+                               messages=[{"role": "user", "content": content}],
+                               options={
+                                   "num_ctx": 16_000,
+                                   "temperature": 0.1,
+                               })
+
+        topics = response["message"]["content"]
+
+        eval_query = f"# Main topics\n{topics}\n\n# Chat history\n{conversation}"
+        response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
+                               messages=[
+                                   {"role": "system", "content": system_prompt},
+                                   {"role": "user", "content": eval_query}],
+                               options={
+                                   "num_ctx": 32_000,
+                                   "temperature": 0.1,
+                               })
+
+        evaluation: str = response["message"]["content"]
+        as_json = json.loads(evaluation)
+        dataset.append({"topics": topics,
+                        "history": conversation,
+                        "reason": as_json["feedback"],
+                        "assessment": as_json["assessment"]})
+
+    return dataset
+
+
+###
+
 def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
     contents = input_name.read()
@@ -130,10 +203,18 @@ def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> 
         exchange = generate_exchange(text_chunk)
         exchanges.append(exchange)
 
+    rated_exchanges = gen_dataset(exchanges)
+    output_data = []
+    for n in rated_exchanges:
+        output_data.append({"history": n["history"].history, "reason": n["reason"], "assessment": n["assessment"]})
 
-    exchanges_dump = [history.get_history_list() for history in exchanges]
-    json.dump(exchanges_dump, output_name, indent=4) #args.o words in output_name's place for some reason
+    # exchanges_dump = [history.get_history_list() for history in exchanges]
+    print(output_data)
+    print("hello")
+    # json.dump(output_data, output_name, indent=4) #args.o words in output_name's place for some reason
+    output_name.write(json.dumps(output_data, indent=4))
     # args.o.close()
+    pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -143,9 +224,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Attributes of socratic conversations
-    depth = 5 # Depth of conversations
+    depth = 4 # Depth of conversations
     # chunk_size = 1000 # Chunk size of splits in input file
-    num_conversations = 1 # Number of conversations
+    num_conversations = 3 # Number of conversations
     if args.num:
         num_conversations = args.num
 

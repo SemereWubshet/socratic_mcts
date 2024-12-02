@@ -112,19 +112,19 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Run pipeline
-    pipeline(args.i, args.o)
+    # pipeline(args.i, args.o)
 
 
-    # with open('caches/conversations.json', 'r') as f:
-    #     conversations_list = json.load(f)
-    # #
-    # hist_list = [ChatHistory.from_history(convo) for convo in conversations_list]
-    # with open('saves/save.txt', 'w') as f:
+    with open('caches/conversations.json', 'r') as f:
+        conversations_list = json.load(f)
     #
-    #     for hist in hist_list:
-    #         # f.write("New conversation\n")
-    #         f.write(str(hist))
-    #         f.write("\n=================\n")
-    # out = [str(hist) for hist in hist_list]
-    # print(out)
+    hist_list = [ChatHistory.from_history(convo) for convo in conversations_list]
+    with open('saves/save.txt', 'w') as f:
+
+        for hist in hist_list:
+            # f.write("New conversation\n")
+            f.write(str(hist))
+            f.write("\n=================\n")
+    out = [str(hist) for hist in hist_list]
+    print(out)
 
