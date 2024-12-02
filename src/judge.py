@@ -42,7 +42,10 @@ def gen_dataset(conversations: List[ChatHistory]) -> List[Dict[str, Any]]:
 
         evaluation: str = response["message"]["content"]
         as_json = json.loads(evaluation)
-        dataset.append({"history": conversation, "reason": as_json["feedback"], "assessment": as_json["assessment"]})
+        dataset.append({"topics": topics,
+                        "history": conversation,
+                        "reason": as_json["feedback"],
+                        "assessment": as_json["assessment"]})
 
     return dataset
 
