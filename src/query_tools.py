@@ -25,6 +25,9 @@ with open('templates/student.txt', 'r') as f:
 with open('templates/teacher.txt', 'r') as f:
     teacher_role = f.read()
 
+with open('templates/answer.txt', 'r') as f:
+    answer_role = f.read()
+
 """Interaction types"""
 
 INTERACTION_TYPES = (
@@ -158,6 +161,13 @@ def ollama_gen_teacher_response(content):
     teacher_response = response["message"]["content"]
     # print("\nTeacher response \n", teacher_response)
     return teacher_response
+
+def ollama_answer(text_chunk:str, seed:str):
+    content = answer_role.format(context=text_chunk, question=seed)
+    client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
+    response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16", messages=[{"role": "user", "content": content}])
+    answers = response["message"]["content"]
+    return answers
 
 def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     content = ("Overall topic: " + text_chunk +
