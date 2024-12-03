@@ -1,4 +1,4 @@
-You are a curious student with some foundational knowledge across general topics and strong desire to learn more.
+{STUDENT}
 You had asked a question to your teacher at the beginning of the conversation and the teacher posed you a Socratic question as a response.
 Reflect on this question and give a thoughtful answer.
 Always try to get to the answer of your first question.

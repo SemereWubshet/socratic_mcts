@@ -3,7 +3,7 @@ import ollama
 import pathlib
 from typing import Dict, List, Any
 import json
-from conversation_generator import ChatHistory # Remove if it fails due to circular imports
+# from conversation_generator import ChatHistory # Remove if it fails due to circular imports
 import os
 import google.generativeai as genai
 from openai import OpenAI
@@ -53,6 +53,19 @@ INTERACTION_TYPES = (
     "Make overly broad statements about the major point, requiring clarification or correction.",
 )
 
+"""Student types"""
+STUDENT_TYPES = [
+    "An excellent student who grasps and applies concepts effortlessly across all domains.",
+    "A great student who excels in logic and reasoning but can overanalyze straightforward ideas.",
+    "A good student who is highly inquisitive but occasionally strays too far into tangential topics.",
+    "An average student who can absorb knowledge but may rush and miss finer details and make mistakes.",
+    "An average student who is slower in grasping abstract ideas.",
+    "An average student who knows a little across subjects but lacks standout strengths.",
+    "A below average student who is enthusiastic but struggles with self-directed critical thinking.",
+    "A below average student who relies heavily on structured guidance with inconsistent results.",
+    "A weak student who needs repeated explanations and progresses very slowly.",
+    "A bad student who lacks even basic comprehension and lacks engagement."
+]
 
 """Query functions by Ollama"""
 
@@ -72,10 +85,11 @@ def ollama_gen_soc_question(content):
     base_prompt = pathlib.Path("./templates/seed.txt").read_text(encoding="UTF-8")
     interaction_type = random.choice(INTERACTION_TYPES)
     content = base_prompt.format(context=content, interaction_type=interaction_type)
-
+    print("I'm here")
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
-    response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
+    response = client.chat(model="llama3.1", #"mistral-nemo:12b-instruct-2407-fp16",
                            messages=[{"role": "user", "content": content}])
+    print(response["message"]["content"])
 
     question = response["message"]["content"]
     return question
@@ -87,13 +101,13 @@ def ollama_gen_seed(content):
     seed = response["message"]["content"]
     return seed
 
-def ollama_gen_student_response(text_chunk, seed_question, history_str):
+def ollama_gen_student_response(text_chunk, seed_question, history_str, student_type:int):
     content = ("Overall topic: " + text_chunk +
                "\n Seed question: " + seed_question +
                "\n Conversation History: " + history_str)
-    # content = "Topic: " + seed + "\n Conversation History: " + history # if history else None
+    system_prompt = student_role.format(STUDENT=STUDENT_TYPES[student_type])
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
-    response = client.chat(model="llama3.1", messages=[{"role": "system", "content": student_role},
+    response = client.chat(model="llama3.1", messages=[{"role": "system", "content": system_prompt},
                                                        {"role": "user", "content": content}])
     student_response = response["message"]["content"]
     return student_response
@@ -124,7 +138,7 @@ def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     judge_response = response["message"]["content"]
     return judge_response
 
-def gen_dataset(conversations: List[ChatHistory]) -> List[Dict[str, Any]]:
+def gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
 
     system_prompt = pathlib.Path("./templates/judge.txt").read_text(encoding="UTF-8")
