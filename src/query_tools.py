@@ -55,17 +55,92 @@ INTERACTION_TYPES = (
 
 """Student types"""
 STUDENT_TYPES = [
-    "An excellent student who grasps and applies concepts effortlessly across all domains.",
-    "A great student who excels in logic and reasoning but can overanalyze straightforward ideas.",
-    "A good student who is highly inquisitive but occasionally strays too far into tangential topics.",
-    "An average student who can absorb knowledge but may rush and miss finer details and make mistakes.",
-    "An average student who is slower in grasping abstract ideas.",
-    "An average student who knows a little across subjects but lacks standout strengths.",
-    "A below average student who is enthusiastic but struggles with self-directed critical thinking.",
-    "A below average student who relies heavily on structured guidance with inconsistent results.",
-    "A weak student who needs repeated explanations and progresses very slowly.",
-    "A bad student who lacks even basic comprehension and lacks engagement."
+    "an excellent student who grasps and applies concepts effortlessly across all domains.",
+    "a great student who excels in logic and reasoning but can overanalyze straightforward ideas.",
+    "a good student who is highly inquisitive but occasionally strays too far into tangential topics.",
+    "an average student who can absorb knowledge but may rush and miss finer details and make mistakes.",
+    "an average student who is slower in grasping abstract ideas.",
+    "an average student who knows a little across subjects but lacks standout strengths.",
+    "a below average student who is enthusiastic but struggles with self-directed critical thinking.",
+    "a below average student who relies heavily on structured guidance with inconsistent results.",
+    "a weak student who needs repeated explanations and progresses very slowly.",
+    "a bad student who lacks even basic comprehension and lacks engagement."
 ]
+
+"""Query functions by Open AI"""
+
+def openai_gen_key_points(content):
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", messages=[{"role": "system", "content": keypoints_role},
+                                                       {"role": "user", "content": content}])
+    keypoints = response.choices[0].message.content
+    return keypoints
+
+def openai_gen_soc_question(content):
+    # keypoints = ollama_gen_key_points(content)
+    # client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
+    # response = client.chat(model="llama3.1", messages=[{"role": "system", "content": query_role},
+    #                                                    {"role": "user", "content": keypoints}])
+
+    base_prompt = pathlib.Path("./templates/seed.txt").read_text(encoding="UTF-8")
+    interaction_type = random.choice(INTERACTION_TYPES)
+    content = base_prompt.format(context=content, interaction_type=interaction_type)
+    client = OpenAI()
+    response = client.chat.completions.create(model="gpt-4o-mini",
+                           messages=[{"role": "user", "content": content}])
+    question = response.choices[0].message.content
+    return question
+
+def openai_gen_seed(content):
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", messages=[{"role": "system", "content": seed_role},
+                                                       {"role": "user", "content": content}])
+    seed = response.choices[0].message.content
+    return seed
+
+def openai_gen_student_response(text_chunk, seed_question, history_str, student_type:int):
+    content = ("Overall topic: " + text_chunk +
+               "\n Seed question: " + seed_question +
+               "\n Conversation History: " + history_str)
+    system_prompt = student_role.format(STUDENT=STUDENT_TYPES[6])
+
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", messages=[{"role": "system", "content": system_prompt},
+                                                       {"role": "user", "content": content}])
+    student_response = response.choices[0].message.content
+    return student_response
+
+def openai_gen_teacher_response(content):
+    client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
+    response = client.chat(model="llama3.1", messages=[{"role": "system", "content": teacher_role},
+                                                       {"role": "user", "content": content}])
+    teacher_response = response["message"]["content"]
+    return teacher_response
+
+def ollama_answer(text_chunk:str, seed:str):
+    content = answer_role.format(context=text_chunk, question=seed)
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", messages=[{"role": "user", "content": content}])
+    answers = response.choices[0].message.content
+    return answers
+
+def openai_judge(seed:str, text_chunk:str, history:str) -> int:
+    true_answer = ollama_answer(text_chunk, seed)
+    content = ("Overall topic: " + text_chunk +
+               "\n Seed question: " + seed +
+               "\n Main Topic: " + true_answer +
+               "\n Conversation History: " + history)
+    client = OpenAI()
+    response = client.chat.completions.create(
+        model="gpt-4o-mini", messages=[{"role": "system", "content": judge_role},
+                                                       {"role": "user", "content": content}])
+    judge_response = int(response.choices[0].message.content)
+    return judge_response
+
 
 """Query functions by Ollama"""
 
@@ -106,6 +181,7 @@ def ollama_gen_student_response(text_chunk, seed_question, history_str, student_
                "\n Seed question: " + seed_question +
                "\n Conversation History: " + history_str)
     system_prompt = student_role.format(STUDENT=STUDENT_TYPES[student_type])
+
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
     response = client.chat(model="llama3.1", messages=[{"role": "system", "content": system_prompt},
                                                        {"role": "user", "content": content}])
@@ -172,6 +248,40 @@ def gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
                                })
 
         evaluation: str = response["message"]["content"]
+        as_json = json.loads(evaluation)
+        dataset.append({"topics": topics,
+                        "history": conversation,
+                        "reason": as_json["feedback"],
+                        "assessment": as_json["assessment"]})
+
+    return dataset
+
+
+def openai_gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
+    client = OpenAI()
+
+    system_prompt = pathlib.Path("./templates/judge.txt").read_text(encoding="UTF-8")
+    answer_prompt = pathlib.Path("./templates/answer.txt").read_text(encoding="UTF-8")
+
+    dataset = []
+
+    for conversation in conversations:
+        text_chunk = conversation.get_text_chunk()
+        seed_question = conversation.get_seed()
+
+        content = answer_prompt.format(context=text_chunk, question=seed_question)
+
+        response = client.chat.completions.create(model="gpt-4o-mini",messages=[{"role": "user", "content": content}])
+
+        topics = response.choices[0].message.content
+
+        eval_query = f"# Main topics\n{topics}\n\n# Chat history\n{conversation}"
+        response = client.chat.completions.create(model="gpt-4o-mini",
+                               messages=[{"role": "system", "content": system_prompt},
+                                   {"role": "user", "content": eval_query}]
+                              )
+
+        evaluation: str = response.choices[0].message.content
         as_json = json.loads(evaluation)
         dataset.append({"topics": topics,
                         "history": conversation,

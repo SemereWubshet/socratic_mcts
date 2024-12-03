@@ -1,7 +1,3 @@
-import conversation_generator
-import judge
-import validation
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', required=True, help='Input textual data on covered topics', type=argparse.FileType('r'))

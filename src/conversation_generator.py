@@ -3,17 +3,21 @@ import itertools
 import json
 import random
 from typing import TextIO
+
+from datasets import load_dataset
+
 import query_tools as qt
 import json
 import pathlib
 from typing import Dict, List, Any
 import ollama
+import datasets
 
 
 # Remove this function: I can just qt.ollama_gen_seed() directly
 def gen_seed_question(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
-    seed_question = qt.ollama_gen_soc_question(text_chunk)
+    seed_question = qt.openai_gen_soc_question(text_chunk)
     return seed_question
 
 
@@ -86,13 +90,13 @@ class ChatHistory:
 
 def teacher(history:ChatHistory) -> str:
     """Generate teacher response based on history"""
-    teacher_response = qt.ollama_gen_teacher_response(str(history))
+    teacher_response = qt.openai_gen_teacher_response(str(history))
     return teacher_response
 
 
 def student(text_chunk:str, seed_question:str, history:ChatHistory) -> str:
     """Generate student response based on seed and history"""
-    student_response = qt.ollama_gen_student_response(text_chunk, seed_question, str(history), history.get_student_type())
+    student_response = qt.openai_gen_student_response(text_chunk, seed_question, str(history), history.get_student_type())
     return student_response
 
 
@@ -134,20 +138,25 @@ def split_into_chunks(text, chunk_size=2000):
 
 def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
-    contents = input_name.read()
-    text_chunks = split_into_chunks(contents)#, chunk_size)
+    # contents = input_name.read()
+    contents = load_dataset("wikimedia/wikipedia", "20231101.simple")['train']
 
     exchanges = []
 
     for index in range(number_of_conversations):
-        text_chunk = text_chunks[index]
+        page = random.choice(contents)
+        page_text = page["text"]
+        text_chunks = split_into_chunks(page_text)
+        text_chunk = random.choice(text_chunks)
         exchange = generate_exchange(text_chunk)
         exchanges.append(exchange)
 
-    rated_exchanges = qt.gen_dataset(exchanges)
+    rated_exchanges = qt.openai_gen_dataset(exchanges)
     output_data = []
-    for n in rated_exchanges:
-        output_data.append({"history": n["history"].get_history_list(), "topics":n["topics"], "reason": n["reason"], "assessment": n["assessment"]})
+    for exchange in rated_exchanges:
+        output_data.append({"history": exchange["history"].get_history_list(),
+                            "topics":exchange["topics"], "reason": exchange["reason"],
+                            "assessment": exchange["assessment"]})
     output_name.write(json.dumps(output_data, indent=4))
 
 if __name__ == "__main__":
