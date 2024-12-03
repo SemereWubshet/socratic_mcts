@@ -1,6 +1,9 @@
 import random
 import ollama
 import pathlib
+from typing import Dict, List, Any
+import json
+from conversation_generator import ChatHistory # Remove if it fails due to circular imports
 import os
 import google.generativeai as genai
 from openai import OpenAI
@@ -49,63 +52,6 @@ INTERACTION_TYPES = (
     "Ask if there are any arguments or evidence against the major point, prompting critical evaluation.",
     "Make overly broad statements about the major point, requiring clarification or correction.",
 )
-
-"""Query functions by Open AI"""
-
-def openai_gen_soc_question(content):
-    client = OpenAI()
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": query_role},
-            {"role": "user", "content": content}
-        ]
-    )
-    questions = response.choices[0].message.content
-    return questions
-
-def openai_gen_seed(content):
-    client = OpenAI()
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": seed_role},
-                  {"role": "user", "content": content}])
-    seed = response.choices[0].message.content
-    return seed
-
-def openai_gen_student_response(text_chunk, seed_question, history_str):
-    client = OpenAI()
-    content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed_question +
-               "\n Conversation History: " + history_str)
-    # content = "Topic: " + seed + "\n Conversation History: " + history # if history else None
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": student_role},
-                  {"role": "user", "content": content}])
-    student_response = response.choices[0].message.content
-    return student_response
-
-def openai_gen_teacher_response(content):
-    client = OpenAI()
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": teacher_role},
-                  {"role": "user", "content": content}])
-    teacher_response = response.choices[0].message.content
-    return teacher_response
-
-def openai_gen_judge(text_chunk, seed, history):
-    client = OpenAI()
-    content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed +
-               "\n Conversation History: " + history)
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "system", "content": judge_role},
-                  {"role": "user", "content": content}])
-    judge_response = response.choices[0].message.content
-    return judge_response
 
 
 """Query functions by Ollama"""
@@ -178,51 +124,44 @@ def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     judge_response = response["message"]["content"]
     return judge_response
 
-"""Query functions by Gemini"""
-api_key = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-genai.configure(api_key=api_key)
-model_name = "learnlm-1.5-pro-experimental"
-model = genai.GenerativeModel(model_name)
+def gen_dataset(conversations: List[ChatHistory]) -> List[Dict[str, Any]]:
+    client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
 
-def prompter(role:str, content:str) -> str:
-    message = (f"You shall play the role given below. Role: \n {role} \n"
-               f"The person you are speaking to gives you the following content."
-               f"Content: \n {content} \n")
-    return message
+    system_prompt = pathlib.Path("./templates/judge.txt").read_text(encoding="UTF-8")
+    answer_prompt = pathlib.Path("./templates/answer.txt").read_text(encoding="UTF-8")
 
-def gemini_gen_soc_question(content):
-    full_prompt = prompter(query_role, content)
-    response = model.generate_content(full_prompt)
-    questions = response.text
-    return questions
+    dataset = []
 
+    for conversation in conversations:
+        text_chunk = conversation.get_text_chunk()
+        seed_question = conversation.get_seed()
 
-def gemini_gen_seed(content):
-    full_prompt = prompter(seed_role, content)
-    response = model.generate_content(full_prompt)
-    seed = response.text
-    return seed
+        content = answer_prompt.format(context=text_chunk, question=seed_question)
 
-def gemini_gen_student_response(text_chunk, seed_question, history_str):
-    content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed_question +
-               "\n Conversation History: " + history_str)
-    full_prompt = prompter(student_role, content)
-    response = model.generate_content(full_prompt)
-    student_response = response.text
-    return student_response
+        response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
+                               messages=[{"role": "user", "content": content}],
+                               options={
+                                   "num_ctx": 16_000,
+                                   "temperature": 0.1,
+                               })
 
-def gemini_gen_teacher_response(content):
-    full_prompt = prompter(teacher_role, content)
-    response = model.generate_content(full_prompt)
-    teacher_response = response.text
-    return teacher_response
+        topics = response["message"]["content"]
 
-def gemini_judge(seed:str, text_chunk:str, history:str) -> int:
-    content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed +
-               "\n Conversation History: " + history)
-    full_prompt = prompter(judge_role, content)
-    response = model.generate_content(full_prompt)
-    judge_response = response.text
-    return judge_response
+        eval_query = f"# Main topics\n{topics}\n\n# Chat history\n{conversation}"
+        response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
+                               messages=[
+                                   {"role": "system", "content": system_prompt},
+                                   {"role": "user", "content": eval_query}],
+                               options={
+                                   "num_ctx": 32_000,
+                                   "temperature": 0.1,
+                               })
+
+        evaluation: str = response["message"]["content"]
+        as_json = json.loads(evaluation)
+        dataset.append({"topics": topics,
+                        "history": conversation,
+                        "reason": as_json["feedback"],
+                        "assessment": as_json["assessment"]})
+
+    return dataset
