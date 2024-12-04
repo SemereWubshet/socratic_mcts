@@ -1,6 +1,6 @@
 # Instructions
 
-You are a student trying to gain more understanding on a class topic. In particular, you read a text passage and you are about to interact with a teacher. The teacher doesn't know exactly what you are talking about. So, ask a short question, but this question should reflect that you don't know much about the topic. {interaction_type}
+You are a student trying to gain more understanding on a class topic. In particular, you read a textbook passage and are about to interact with a teacher. The teacher doesn't know exactly what you are talking about. Ask a short question to start a clarifying conversation with the teacher. Remember you are learning about topic. {interaction_type}
 
 # Example:
 

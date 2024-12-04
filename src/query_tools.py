@@ -55,7 +55,7 @@ with open('templates/answer.txt', 'r') as f:
 
 INTERACTION_TYPES = (
     {
-        "interaction_type": "Demand deeper clarification about one of the major points on the topic.",
+        "interaction_type": "Demand clarification about a major point on the topic.",
         "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is scattered "
                    "by particles much smaller than the wavelength of the light, typically molecules in the atmosphere. "
                    "This scattering is more effective at shorter wavelengths, meaning colors like blue and violet are "
@@ -65,7 +65,7 @@ INTERACTION_TYPES = (
         "question": "Why is the sky blue?"
     },
     {
-        "interaction_type": "Make misleading claims due to misunderstanding on one or more of the topics.",
+        "interaction_type": "Make misleading claims due to misunderstanding about a major point on the topic.",
         "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is scattered "
                    "by particles much smaller than the wavelength of the light, typically molecules in the atmosphere. "
                    "This scattering is more effective at shorter wavelengths, meaning colors like blue and violet are "
@@ -108,7 +108,7 @@ def openai_gen_soc_question(content):
 
     base_prompt = pathlib.Path("./templates/seed.txt").read_text(encoding="UTF-8")
     interaction_type = random.choice(INTERACTION_TYPES)
-    content = base_prompt.format(context=content, interaction_type=interaction_type)
+    content = base_prompt.format(**interaction_type)
     client = OpenAI()
     response = client.chat.completions.create(model="gpt-4o-mini",
                            messages=[{"role": "user", "content": content}])
