@@ -55,7 +55,7 @@ with open('templates/answer.txt', 'r') as f:
 
 INTERACTION_TYPES = (
     {
-        "interaction_type": "Demand clarification about a major point on the topic.",
+        "interaction_type": "Ask a general question about the main topic.",
         "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is scattered "
                    "by particles much smaller than the wavelength of the light, typically molecules in the atmosphere. "
                    "This scattering is more effective at shorter wavelengths, meaning colors like blue and violet are "
@@ -65,14 +65,14 @@ INTERACTION_TYPES = (
         "question": "Why is the sky blue?"
     },
     {
-        "interaction_type": "Make misleading claims due to misunderstanding about a major point on the topic.",
+        "interaction_type": "Ask a misleading question about the topic containing a wrong claim.",
         "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is scattered "
                    "by particles much smaller than the wavelength of the light, typically molecules in the atmosphere. "
                    "This scattering is more effective at shorter wavelengths, meaning colors like blue and violet are "
                    "scattered more than longer wavelengths like red. This is why the sky appears blue during the day. "
                    "The intensity of Rayleigh scattering is inversely proportional to the fourth power of the "
                    "wavelength, which explains why shorter wavelengths are scattered much more efficiently.",
-        "question": "Is the sun rise orange because the sum warms the air thus scattering the light?"
+        "question": "Is the sunrise orange because the Sun warms the air thus scattering the light?"
     }
 )
 
