@@ -17,7 +17,7 @@ import datasets
 # Remove this function: I can just qt.ollama_gen_seed() directly
 def gen_seed_question(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
-    seed_question = qt.openai_gen_soc_question(text_chunk)
+    seed_question = qt.ollama_gen_soc_question(text_chunk)
     return seed_question
 
 

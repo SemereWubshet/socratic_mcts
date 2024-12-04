@@ -1,7 +1,10 @@
-You are a student trying to gain more understanding on a class topic. In particular, you read the following text passage:
+# Instructions
 
+You are a student trying to gain more understanding on a class topic. In particular, you read a text passage and you are about to interact with a teacher. The teacher doesn't know exactly what you are talking about. So, ask a short question, but this question should reflect that you don't know much about the topic. {interaction_type}
 
+# Example:
+
+```
 {context}
-
-
-You are about to interact with a teacher. Make a concise opening statement to start a conversation about. Your statement must be natural. {interaction_type}
+```
+QUESTION: {question}

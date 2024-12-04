@@ -33,24 +33,47 @@ with open('templates/answer.txt', 'r') as f:
 
 """Interaction types"""
 
+# INTERACTION_TYPES = (
+#     "Demand deeper clarification about one of the major points on the topic.",
+#     "Request further explanations that go beyond the original text.",
+#     "Make misleading claims due to misunderstanding on one or more of the topics.",
+#     "Act confused about one of the major points, thus requiring further explanation from the teacher.",
+#     "Demonstrate inability to connect major points.",
+#     "Suggest a different understanding of a major point so to lead to a discussion about its validity.",
+#     "Request examples or applications of a major point in practical, real-world scenarios.",
+#     "Request the comparison to major points with similar or contrasting concepts.",
+#     "Pose \"what-if\" questions to explore the implications of the major point in various contexts.",
+#     "Question the foundational assumptions of the major point, prompting justification or re-explanation.",
+#     "Request an explanation of the major point in simpler terms or using analogies.",
+#     "Demonstrate understanding of some basic concepts but struggle to connect them to the broader major point.",
+#     "Ask questions that are tangentially related to the major point, requiring the teacher to refocus the conversation "
+#     "while addressing the inquiry.",
+#     "Ask for a detailed breakdown of a process or concept related to the major point.",
+#     "Ask if there are any arguments or evidence against the major point, prompting critical evaluation.",
+#     "Make overly broad statements about the major point, requiring clarification or correction.",
+# )
+
 INTERACTION_TYPES = (
-    "Demand deeper clarification about one of the major points on the topic.",
-    "Request further explanations that go beyond the original text.",
-    "Make misleading claims due to misunderstanding on one or more of the topics.",
-    "Act confused about one of the major points, thus requiring further explanation from the teacher.",
-    "Demonstrate inability to connect major points.",
-    "Suggest a different understanding of a major point so to lead to a discussion about its validity.",
-    "Request examples or applications of a major point in practical, real-world scenarios.",
-    "Request the comparison to major points with similar or contrasting concepts.",
-    "Pose \"what-if\" questions to explore the implications of the major point in various contexts.",
-    "Question the foundational assumptions of the major point, prompting justification or re-explanation.",
-    "Request an explanation of the major point in simpler terms or using analogies.",
-    "Demonstrate understanding of some basic concepts but struggle to connect them to the broader major point.",
-    "Ask questions that are tangentially related to the major point, requiring the teacher to refocus the conversation "
-    "while addressing the inquiry.",
-    "Ask for a detailed breakdown of a process or concept related to the major point.",
-    "Ask if there are any arguments or evidence against the major point, prompting critical evaluation.",
-    "Make overly broad statements about the major point, requiring clarification or correction.",
+    {
+        "interaction_type": "Demand deeper clarification about one of the major points on the topic.",
+        "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is scattered "
+                   "by particles much smaller than the wavelength of the light, typically molecules in the atmosphere. "
+                   "This scattering is more effective at shorter wavelengths, meaning colors like blue and violet are "
+                   "scattered more than longer wavelengths like red. This is why the sky appears blue during the day. "
+                   "The intensity of Rayleigh scattering is inversely proportional to the fourth power of the "
+                   "wavelength, which explains why shorter wavelengths are scattered much more efficiently.",
+        "question": "Why is the sky blue?"
+    },
+    {
+        "interaction_type": "Make misleading claims due to misunderstanding on one or more of the topics.",
+        "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is scattered "
+                   "by particles much smaller than the wavelength of the light, typically molecules in the atmosphere. "
+                   "This scattering is more effective at shorter wavelengths, meaning colors like blue and violet are "
+                   "scattered more than longer wavelengths like red. This is why the sky appears blue during the day. "
+                   "The intensity of Rayleigh scattering is inversely proportional to the fourth power of the "
+                   "wavelength, which explains why shorter wavelengths are scattered much more efficiently.",
+        "question": "Is the sun rise orange because the sum warms the air thus scattering the light?"
+    }
 )
 
 """Student types"""
@@ -152,6 +175,7 @@ def ollama_gen_key_points(content):
     return keypoints
 
 def ollama_gen_soc_question(content):
+def ollama_gen_soc_question(text_chunk: str) -> str:
     # keypoints = ollama_gen_key_points(content)
     # client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
     # response = client.chat(model="llama3.1", messages=[{"role": "system", "content": query_role},
@@ -159,15 +183,17 @@ def ollama_gen_soc_question(content):
 
     base_prompt = pathlib.Path("./templates/seed.txt").read_text(encoding="UTF-8")
     interaction_type = random.choice(INTERACTION_TYPES)
-    content = base_prompt.format(context=content, interaction_type=interaction_type)
+    system_prompt = base_prompt.format(**interaction_type)
     print("I'm here")
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
-    response = client.chat(model="llama3.1", #"mistral-nemo:12b-instruct-2407-fp16",
-                           messages=[{"role": "user", "content": content}])
+    response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
+                           messages=[{"role": "system", "content": system_prompt},
+                                     {"role": "user", "content": f"```{text_chunk}```\nQUESTION: "}])
     print(response["message"]["content"])
 
     question = response["message"]["content"]
     return question
+
 
 def ollama_gen_seed(content):
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
