@@ -174,7 +174,7 @@ def ollama_gen_key_points(content):
     keypoints = response["message"]["content"]
     return keypoints
 
-def ollama_gen_soc_question(content):
+
 def ollama_gen_soc_question(text_chunk: str) -> str:
     # keypoints = ollama_gen_key_points(content)
     # client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
