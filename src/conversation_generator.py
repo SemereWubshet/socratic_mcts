@@ -6,7 +6,7 @@ from typing import TextIO
 
 from datasets import load_dataset
 
-import query_tools as qt
+import src.query_tools as qt
 import json
 import pathlib
 from typing import Dict, List, Any
@@ -90,13 +90,13 @@ class ChatHistory:
 
 def teacher(history:ChatHistory) -> str:
     """Generate teacher response based on history"""
-    teacher_response = qt.openai_gen_teacher_response(str(history))
+    teacher_response = qt.ollama_gen_teacher_response(str(history))
     return teacher_response
 
 
 def student(text_chunk:str, seed_question:str, history:ChatHistory) -> str:
     """Generate student response based on seed and history"""
-    student_response = qt.openai_gen_student_response(text_chunk, seed_question, str(history), history.get_student_type())
+    student_response = qt.ollama_gen_student_response(text_chunk, seed_question, str(history), history.get_student_type())
     return student_response
 
 

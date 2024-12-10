@@ -1,11 +1,10 @@
-import random
-import ollama
-import pathlib
-from typing import Dict, List, Any
 import json
+import pathlib
+import random
+from typing import Dict, List, Any
+
+import ollama
 # from conversation_generator import ChatHistory # Remove if it fails due to circular imports
-import os
-import google.generativeai as genai
 from openai import OpenAI
 
 # with open('templates/query_generator.txt', 'r') as f: # Make a keypoints.txt role
@@ -92,13 +91,15 @@ STUDENT_TYPES = [
 
 """Query functions by Open AI"""
 
+
 def openai_gen_key_points(content):
     client = OpenAI()
     response = client.chat.completions.create(
         model="gpt-4o-mini", messages=[{"role": "system", "content": keypoints_role},
-                                                       {"role": "user", "content": content}])
+                                       {"role": "user", "content": content}])
     keypoints = response.choices[0].message.content
     return keypoints
+
 
 def openai_gen_soc_question(content):
     # keypoints = ollama_gen_key_points(content)
@@ -111,19 +112,21 @@ def openai_gen_soc_question(content):
     content = base_prompt.format(**interaction_type)
     client = OpenAI()
     response = client.chat.completions.create(model="gpt-4o-mini",
-                           messages=[{"role": "user", "content": content}])
+                                              messages=[{"role": "user", "content": content}])
     question = response.choices[0].message.content
     return question
+
 
 def openai_gen_seed(content):
     client = OpenAI()
     response = client.chat.completions.create(
         model="gpt-4o-mini", messages=[{"role": "system", "content": seed_role},
-                                                       {"role": "user", "content": content}])
+                                       {"role": "user", "content": content}])
     seed = response.choices[0].message.content
     return seed
 
-def openai_gen_student_response(text_chunk, seed_question, history_str, student_type:int):
+
+def openai_gen_student_response(text_chunk, seed_question, history_str, student_type: int):
     content = ("Overall topic: " + text_chunk +
                "\n Seed question: " + seed_question +
                "\n Conversation History: " + history_str)
@@ -132,9 +135,10 @@ def openai_gen_student_response(text_chunk, seed_question, history_str, student_
     client = OpenAI()
     response = client.chat.completions.create(
         model="gpt-4o-mini", messages=[{"role": "system", "content": system_prompt},
-                                                       {"role": "user", "content": content}])
+                                       {"role": "user", "content": content}])
     student_response = response.choices[0].message.content
     return student_response
+
 
 def openai_gen_teacher_response(content):
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
@@ -143,7 +147,8 @@ def openai_gen_teacher_response(content):
     teacher_response = response["message"]["content"]
     return teacher_response
 
-def ollama_answer(text_chunk:str, seed:str):
+
+def ollama_answer(text_chunk: str, seed: str):
     content = answer_role.format(context=text_chunk, question=seed)
     client = OpenAI()
     response = client.chat.completions.create(
@@ -151,7 +156,8 @@ def ollama_answer(text_chunk:str, seed:str):
     answers = response.choices[0].message.content
     return answers
 
-def openai_judge(seed:str, text_chunk:str, history:str) -> int:
+
+def openai_judge(seed: str, text_chunk: str, history: str) -> int:
     true_answer = ollama_answer(text_chunk, seed)
     content = ("Overall topic: " + text_chunk +
                "\n Seed question: " + seed +
@@ -160,12 +166,13 @@ def openai_judge(seed:str, text_chunk:str, history:str) -> int:
     client = OpenAI()
     response = client.chat.completions.create(
         model="gpt-4o-mini", messages=[{"role": "system", "content": judge_role},
-                                                       {"role": "user", "content": content}])
+                                       {"role": "user", "content": content}])
     judge_response = int(response.choices[0].message.content)
     return judge_response
 
 
 """Query functions by Ollama"""
+
 
 def ollama_gen_key_points(content):
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
@@ -182,14 +189,14 @@ def ollama_gen_soc_question(text_chunk: str) -> str:
     #                                                    {"role": "user", "content": keypoints}])
 
     base_prompt = pathlib.Path("./templates/seed.txt").read_text(encoding="UTF-8")
-    interaction_type = random.choice(INTERACTION_TYPES)
+    interaction_type = INTERACTION_TYPES[1]
     system_prompt = base_prompt.format(**interaction_type)
-    print("I'm here")
+    # print("I'm here")
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
     response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
                            messages=[{"role": "system", "content": system_prompt},
                                      {"role": "user", "content": f"```{text_chunk}```\nQUESTION: "}])
-    print(response["message"]["content"])
+    # print(response["message"]["content"])
 
     question = response["message"]["content"]
     return question
@@ -202,17 +209,20 @@ def ollama_gen_seed(content):
     seed = response["message"]["content"]
     return seed
 
-def ollama_gen_student_response(text_chunk, seed_question, history_str, student_type:int):
-    content = ("Overall topic: " + text_chunk +
-               "\n Seed question: " + seed_question +
-               "\n Conversation History: " + history_str)
+
+def ollama_gen_student_response(text_chunk, seed_question, history_str, student_type: int):
+    # content = ("Overall topic: " + text_chunk +
+    #            "\n Seed question: " + seed_question +
+    #            "\n Conversation History: " + history_str)
     system_prompt = student_role.format(STUDENT=STUDENT_TYPES[student_type])
 
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
-    response = client.chat(model="llama3.1", messages=[{"role": "system", "content": system_prompt},
-                                                       {"role": "user", "content": content}])
+    response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
+                           messages=[{"role": "system", "content": system_prompt},
+                                     {"role": "user", "content": f"```{history_str}```\nOUTPUT: "}])
     student_response = response["message"]["content"]
     return student_response
+
 
 def ollama_gen_teacher_response(content):
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
@@ -221,14 +231,16 @@ def ollama_gen_teacher_response(content):
     teacher_response = response["message"]["content"]
     return teacher_response
 
-def ollama_answer(text_chunk:str, seed:str):
+
+def ollama_answer(text_chunk: str, seed: str):
     content = answer_role.format(context=text_chunk, question=seed)
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
     response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16", messages=[{"role": "user", "content": content}])
     answers = response["message"]["content"]
     return answers
 
-def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
+
+def ollama_judge(seed: str, text_chunk: str, history: str) -> int:
     true_answer = ollama_answer(text_chunk, seed)
     content = ("Overall topic: " + text_chunk +
                "\n Seed question: " + seed +
@@ -239,6 +251,7 @@ def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
                                                        {"role": "user", "content": content}])
     judge_response = response["message"]["content"]
     return judge_response
+
 
 def gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
@@ -297,15 +310,15 @@ def openai_gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
 
         content = answer_prompt.format(context=text_chunk, question=seed_question)
 
-        response = client.chat.completions.create(model="gpt-4o-mini",messages=[{"role": "user", "content": content}])
+        response = client.chat.completions.create(model="gpt-4o-mini", messages=[{"role": "user", "content": content}])
 
         topics = response.choices[0].message.content
 
         eval_query = f"# Main topics\n{topics}\n\n# Chat history\n{conversation}"
         response = client.chat.completions.create(model="gpt-4o-mini",
-                               messages=[{"role": "system", "content": system_prompt},
-                                   {"role": "user", "content": eval_query}]
-                              )
+                                                  messages=[{"role": "system", "content": system_prompt},
+                                                            {"role": "user", "content": eval_query}]
+                                                  )
 
         evaluation: str = response.choices[0].message.content
         as_json = json.loads(evaluation)
