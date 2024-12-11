@@ -24,7 +24,7 @@ Your output must be
 
 Your output must be written according to the json following format:
 
-{"feedback": "(the reasoning of the evaluation)", "assessment" : true}
+{"feedback": "(the reasoning of the evaluation)", "assessment" : (true if the teacher helped the student cover all the main topics of the conversation while following the Socratic method, false otherwise)}
 
 
 Examples:
