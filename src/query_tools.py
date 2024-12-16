@@ -160,11 +160,11 @@ def ollama_gen_soc_question(content):
     base_prompt = pathlib.Path("./templates/seed.txt").read_text(encoding="UTF-8")
     interaction_type = random.choice(INTERACTION_TYPES)
     content = base_prompt.format(context=content, interaction_type=interaction_type)
-    print("I'm here")
+    # print("I'm here")
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
-    response = client.chat(model="llama3.1", #"mistral-nemo:12b-instruct-2407-fp16",
+    response = client.chat(model="mistral-nemo:12b-instruct-2407-fp16",
                            messages=[{"role": "user", "content": content}])
-    print(response["message"]["content"])
+    # print(response["message"]["content"])
 
     question = response["message"]["content"]
     return question
@@ -214,7 +214,7 @@ def ollama_judge(seed:str, text_chunk:str, history:str) -> int:
     judge_response = response["message"]["content"]
     return judge_response
 
-def gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
+def ollama_gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
     client = ollama.Client(host="http://atlas1api.eurecom.fr:8019")
 
     system_prompt = pathlib.Path("./templates/judge.txt").read_text(encoding="UTF-8")
@@ -289,3 +289,6 @@ def openai_gen_dataset(conversations: List[Any]) -> List[Dict[str, Any]]:
                         "assessment": as_json["assessment"]})
 
     return dataset
+
+
+print(ollama_gen_soc_question("The fire triangle is a useful tool"))

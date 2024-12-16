@@ -18,6 +18,8 @@ import datasets
 def gen_seed_question(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
     seed_question = qt.openai_gen_soc_question(text_chunk)
+    # func = query_function_choice("_gen_soc_question")
+    # seed_question = func(text_chunk)
     return seed_question
 
 
@@ -136,6 +138,9 @@ def split_into_chunks(text, chunk_size=2000):
     random.shuffle(chunks) # Randomize chunks
     return chunks
 
+def query_function_choice(func_name:str) -> None:
+    return getattr(qt, llm+func_name)
+
 def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
     # contents = input_name.read()
@@ -170,8 +175,9 @@ if __name__ == "__main__":
     depth = 2 # Depth of conversations
     # chunk_size = 1000 # Chunk size of splits in input file
     num_conversations = 2 # Number of conversations
+    llm = 'openai' # LLM used by all functions
     if args.num:
         num_conversations = args.num
 
     # Run pipeline
-    pipeline(args.i, args.o, num_conversations)
+    # pipeline(args.i, args.o, num_conversations)
