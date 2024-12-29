@@ -1,11 +1,5 @@
-import argparse
-import json
-import pathlib
-import random
-from typing import TextIO
-
 import query_tools as qt
-from src.conversation_generator import *
+from saves.old.conversation_generator import *
 
 # Remove this function: I can just qt.ollama_gen_seed() directly
 def gen_seed_topic(text_chunk:str) -> str:

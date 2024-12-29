@@ -1,17 +1,11 @@
 import argparse
-import itertools
-import json
 import random
 from typing import TextIO
 
 from datasets import load_dataset
 
-import src.query_tools as qt
+import saves.old.query_tools as qt
 import json
-import pathlib
-from typing import Dict, List, Any
-import ollama
-import datasets
 
 
 # Remove this function: I can just qt.ollama_gen_seed() directly

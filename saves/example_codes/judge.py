@@ -4,7 +4,7 @@ from typing import Dict, List, Any
 
 import ollama
 
-from src.conversation_generator import ChatHistory, gen_seed_question
+from saves.old.conversation_generator import ChatHistory
 
 
 def gen_dataset(conversations: List[ChatHistory]) -> List[Dict[str, Any]]:

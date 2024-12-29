@@ -39,4 +39,4 @@ def save_random_wiki_pages(filename, num_pages=2):
             f.write("\n\n")
 
 if __name__ == "__main__":
-  save_random_wiki_pages("../knowledge/new_knowledge.txt", 15)
+  save_random_wiki_pages("knowledge/new.txt", 15)

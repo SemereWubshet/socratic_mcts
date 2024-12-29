@@ -1,4 +1,4 @@
-from src.conversation_generator import generate_exchange, student, ChatHistory, gen_seed_question
+from saves.old.conversation_generator import gen_seed_question
 
 if __name__ == "__main__":
     text_chunk = ("The fire triangle or combustion triangle is a simple model for understanding the necessary "

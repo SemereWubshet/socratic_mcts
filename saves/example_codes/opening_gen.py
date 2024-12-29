@@ -7,7 +7,7 @@ from typing import Dict, List
 
 import ollama
 
-from src.conversation_generator import split_into_chunks
+from saves.old.conversation_generator import split_into_chunks
 
 INTERACTION_TYPES = (
     "Demand deeper clarification about one of the major points on the topic.",
