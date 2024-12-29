@@ -8,6 +8,8 @@ from openai import OpenAI
 from agents import StudentSeed, LLM, Student, Teacher, Judge, OllamaAgent, OpenAIAgent
 from rollout import Interaction, InteractionDataset, Evaluation, EvaluationDataset, evaluate
 
+
+
 def extract_interaction_dataset(evaluation_dataset: EvaluationDataset) -> InteractionDataset:
 
   all_interactions = InteractionDataset([])
@@ -16,6 +18,8 @@ def extract_interaction_dataset(evaluation_dataset: EvaluationDataset) -> Intera
     all_interactions.root.append(interaction)
   return all_interactions
 
+
+
 if __name__ == "__main__":
     # Argument parser
     parser = argparse.ArgumentParser()
@@ -23,6 +27,10 @@ if __name__ == "__main__":
                         help="Path to the evaluation dataset with empty assessments and feedback.")
     parser.add_argument("--output_dir", type=str, required=True,
                         help="Directory to store evaluation datasets for each model.")
+    parser.add_argument("--use_cache", type=bool, required=True,
+                        help="Decides whether or not to use cached judgements.")
+    parser.add_argument("--num_eval", type=bool, required=True,
+                        help="The number of times evaluations are made from which statistics are recorded.")
     args = parser.parse_args()
 
     # Setup output directory
@@ -45,16 +53,19 @@ if __name__ == "__main__":
     interactions_dataset = extract_interaction_dataset(empty_eval_dataset)
     interaction_path.write_text(interactions_dataset.model_dump_json(indent=4))
 
-    # List of AI agents
-    ollama_judge = OllamaAgent(model="llama3.3:70b", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
-    # mistralnemo_judge = OllamaAgent(model="mistral-nemo:12b-instruct-2407-fp16", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
-    # openai_judge = OpenAIAgent(model="gpt-4o-mini", client=OpenAI()) # Change to gpt 4o
-
-    # Evaluate dataset by the 3 judges
     print("Evaluating interactions as we speak", flush=True)
-    ollama_eval_dataset = evaluate(interactions_dataset, ollama_judge)
-    ollama_path.write_text(ollama_eval_dataset.model_dump_json(indent=4))
+    # Ollama
+    # ollama_judge = OllamaAgent(model="llama3.3:70b", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
+    # ollama_eval_dataset = evaluate(interactions_dataset, ollama_judge)
+    # ollama_path.write_text(ollama_eval_dataset.model_dump_json(indent=4))
 
+    # Mistral
+    # mistralnemo_judge = OllamaAgent(model="mistral-nemo:12b-instruct-2407-fp16", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
     # mistralnemo_eval_dataset = evaluate(interactions_dataset, mistralnemo_judge)
+    # mistralnemo_path.write_text(mistralnemo_eval_dataset.model_dump_json(indent=4))
+
+    # OpenAI
+    # openai_judge = OpenAIAgent(model="gpt-4o-mini", client=OpenAI()) # Change to gpt 4o
     # openai_eval_dataset = evaluate(interactions_dataset, openai_judge)
+    # openai_path.write_text(openai_eval_dataset.model_dump_json(indent=4))
 

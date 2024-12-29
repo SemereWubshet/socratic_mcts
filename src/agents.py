@@ -173,5 +173,9 @@ class Judge:
         assessment = self._llm.query([{"role": "system", "content": Judge.BASE_PROMPT},
                                       {"role": "user", "content": f"# Main Topics\n{main_topics}\n\n"
                                                                   f"# Chat history\n{chat_history}\n\n"}])
+        print("I'm assessment\n")
+        print(assessment)
+
+        print("\nDone with assessment")
         parsed = json.loads(assessment)
         return parsed["feedback"], parsed["assessment"]
