@@ -6,7 +6,7 @@ from typing import TextIO
 
 from datasets import load_dataset
 
-import query_tools as qt
+import src.query_tools as qt
 import json
 import pathlib
 from typing import Dict, List, Any
@@ -17,9 +17,7 @@ import datasets
 # Remove this function: I can just qt.ollama_gen_seed() directly
 def gen_seed_question(text_chunk:str) -> str:
     """Call to llm to generate a specific seed topic given a chunk"""
-    seed_question = qt.openai_gen_soc_question(text_chunk)
-    # func = query_function_choice("_gen_soc_question")
-    # seed_question = func(text_chunk)
+    seed_question = qt.ollama_gen_soc_question(text_chunk)
     return seed_question
 
 
@@ -92,13 +90,13 @@ class ChatHistory:
 
 def teacher(history:ChatHistory) -> str:
     """Generate teacher response based on history"""
-    teacher_response = qt.openai_gen_teacher_response(str(history))
+    teacher_response = qt.ollama_gen_teacher_response(str(history))
     return teacher_response
 
 
 def student(text_chunk:str, seed_question:str, history:ChatHistory) -> str:
     """Generate student response based on seed and history"""
-    student_response = qt.openai_gen_student_response(text_chunk, seed_question, str(history), history.get_student_type())
+    student_response = qt.ollama_gen_student_response(text_chunk, seed_question, str(history), history.get_student_type())
     return student_response
 
 
@@ -107,12 +105,12 @@ def student(text_chunk:str, seed_question:str, history:ChatHistory) -> str:
 #     judge_response = qt.ollama_judge(seed_topic, text_chunk, str(history))
 #     return judge_response
 
-def generate_exchange(text_chunk:str) -> ChatHistory:
+def generate_exchange(text_chunk:str, depth: int = 2) -> ChatHistory:
     """Generate Socratic dialogue between a student and a teacher"""
     seed_question = gen_seed_question(text_chunk)
     history = ChatHistory()
     history.add_text_chunk(text_chunk)
-    history.add_student_type(random.randint(0, 9))
+    history.add_student_type(7)
     history.add_student(seed_question)
 
     for _ in range(depth - 1):
@@ -138,10 +136,7 @@ def split_into_chunks(text, chunk_size=2000):
     random.shuffle(chunks) # Randomize chunks
     return chunks
 
-def query_function_choice(func_name:str) -> None:
-    return getattr(qt, llm+func_name)
-
-def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> None:
+def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations, depth: int = 2) -> None:
     """Assemble tools to build a Socratic pedagogical dialogue"""
     # contents = input_name.read()
     contents = load_dataset("wikimedia/wikipedia", "20231101.simple")['train']
@@ -153,7 +148,7 @@ def pipeline(input_name:TextIO, output_name:TextIO, number_of_conversations) -> 
         page_text = page["text"]
         text_chunks = split_into_chunks(page_text)
         text_chunk = random.choice(text_chunks)
-        exchange = generate_exchange(text_chunk)
+        exchange = generate_exchange(text_chunk, depth)
         exchanges.append(exchange)
 
     rated_exchanges = qt.openai_gen_dataset(exchanges)
@@ -180,4 +175,4 @@ if __name__ == "__main__":
         num_conversations = args.num
 
     # Run pipeline
-    # pipeline(args.i, args.o, num_conversations)
+    pipeline(args.i, args.o, num_conversations, depth)

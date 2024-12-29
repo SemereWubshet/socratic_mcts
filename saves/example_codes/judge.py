@@ -4,7 +4,7 @@ from typing import Dict, List, Any
 
 import ollama
 
-from src.conversation_generator import ChatHistory
+from src.conversation_generator import ChatHistory, gen_seed_question
 
 
 def gen_dataset(conversations: List[ChatHistory]) -> List[Dict[str, Any]]:
@@ -54,9 +54,12 @@ if __name__ == "__main__":
     with open("caches/conversations.json", "r") as f:
         data = json.load(f)
 
-    hist = [ChatHistory.from_history(c) for c in data]
+    hist = [ChatHistory.from_history(c["history"]) for c in data]
 
     new_data = gen_dataset(hist)
+
+    pass
+
     new_new_data = []
     for n in new_data:
         new_new_data.append({"history": n["history"].history, "reason": n["reason"], "assessment": n["assessment"]})
