@@ -1,10 +1,12 @@
 import argparse
 import pathlib
+import ollama
 from typing import Dict, List, Tuple
 
+from openai import OpenAI
 
-# from agents import StudentSeed, LLM, Student, Teacher, Judge, OllamaAgent
-from rollout import Interaction, InteractionDataset, Evaluation, EvaluationDataset
+from agents import StudentSeed, LLM, Student, Teacher, Judge, OllamaAgent, OpenAIAgent
+from rollout import Interaction, InteractionDataset, Evaluation, EvaluationDataset, evaluate
 
 def extract_interaction_dataset(evaluation_dataset: EvaluationDataset) -> InteractionDataset:
 
@@ -28,7 +30,7 @@ if __name__ == "__main__":
     interaction_path = output_dir / "interaction.json"
     ollama_path = output_dir / "eval_ollama.json"
     openai_path = output_dir / "eval_openai.json"
-    mistral_nemo_path = output_dir / "eval_mistral_nemo.json"
+    mistralnemo_path = output_dir / "eval_mistralnemo.json"
 
     # Read the evaluation dataset
     empty_eval_path = pathlib.Path(args.empty_eval)
@@ -37,33 +39,22 @@ if __name__ == "__main__":
         exit(1)
 
     print("Loading empty evaluation dataset", flush=True)
-
     empty_eval_dataset = EvaluationDataset.model_validate_json(empty_eval_path.read_text())
-    interaction_datasets = extract_interaction_dataset(empty_eval_dataset)
-    interaction_path.write_text(interaction_datasets.model_dump_json(indent=4))
 
+    print("Loading interactions dataset", flush=True)
+    interactions_dataset = extract_interaction_dataset(empty_eval_dataset)
+    interaction_path.write_text(interactions_dataset.model_dump_json(indent=4))
 
+    # List of AI agents
+    ollama_judge = OllamaAgent(model="llama3.3:70b", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
+    # mistralnemo_judge = OllamaAgent(model="mistral-nemo:12b-instruct-2407-fp16", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
+    # openai_judge = OpenAIAgent(model="gpt-4o-mini", client=OpenAI()) # Change to gpt 4o
 
+    # Evaluate dataset by the 3 judges
+    print("Evaluating interactions as we speak", flush=True)
+    ollama_eval_dataset = evaluate(interactions_dataset, ollama_judge)
+    ollama_path.write_text(ollama_eval_dataset.model_dump_json(indent=4))
 
-    # Now you can access each interaction dataset in the list
-    # for interaction_dataset in interaction_datasets:
-    #   print(interaction_dataset)
-    #
-    # evaluation_dataset = load_evaluation_dataset(evaluation_path.read_text())
-    #
-    # # Iterate through models and generate evaluations for each
-    # for model_name in args.models:
-    #     model_output_dir = output_dir / model_name
-    #     model_output_dir.mkdir(exist_ok=True)
-    #
-    #     print(f"Evaluating dataset with model: {model_name}", flush=True)
-    #
-    #     # Evaluate using the current model
-    #     model_evaluations = evaluate_model(evaluation_dataset, model_name)
-    #
-    #     # Write the evaluated dataset to file
-    #     model_output_file = model_output_dir / "evaluations.json"
-    #     model_output_file.write_text(model_evaluations.model_dump_json(indent=4))
-    #
-    # print("Evaluation process complete for all models.")
-    # exit(0)
+    # mistralnemo_eval_dataset = evaluate(interactions_dataset, mistralnemo_judge)
+    # openai_eval_dataset = evaluate(interactions_dataset, openai_judge)
+
