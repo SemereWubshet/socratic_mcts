@@ -1,26 +1,39 @@
 import argparse
 import pathlib
 import ollama
+from openai import OpenAI
+
 import shutil
 from typing import Dict, List, Tuple
+# from fsspec.caching import caches
 
-from fsspec.caching import caches
-from openai import OpenAI
 
 from agents import StudentSeed, LLM, Student, Teacher, Judge, OllamaAgent, OpenAIAgent
 from rollout import Interaction, InteractionDataset, Evaluation, EvaluationDataset, evaluate
 
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from statistics import mean, stdev
 
-
+# Extract interaction dataset from an evaluation dataset
 def extract_interaction_dataset(evaluation_dataset: EvaluationDataset) -> InteractionDataset:
-
   all_interactions = InteractionDataset([])
   for evaluation in evaluation_dataset.root:
     interaction = evaluation.interaction
     all_interactions.root.append(interaction)
   return all_interactions
 
+# Get assessments from evaluation lists
+def extract_assessments(evaluation_list):
+    return [evaluation.assessment for evaluation in evaluation_list.root]
 
+
+# Function to calculate metrics
+def calculate_metrics(predictions, ground_truth):
+    accuracy = accuracy_score(ground_truth, predictions)
+    precision = precision_score(ground_truth, predictions)
+    recall = recall_score(ground_truth, predictions)
+    f1 = f1_score(ground_truth, predictions)
+    return accuracy, precision, recall, f1
 
 if __name__ == "__main__":
     # Argument parser
@@ -42,7 +55,7 @@ if __name__ == "__main__":
     # Prepare LLM list
     ollama_list = ["llama3.3:70b"] # "mistral-nemo:12b-instruct-2407-fp16"]
     # Mistral doesn't work because it is not 'smart' enough to give a proper json response
-    openai_list = ["gpt-4o-mini"]
+    openai_list = ["gpt-4o"]
 
     # Setup output directory
     output_dir = pathlib.Path(args.output_dir)
@@ -66,13 +79,15 @@ if __name__ == "__main__":
 
         # Prepare LLM dictionary
         llm_dict = {}
-        for llm in ollama_list:
-            llm_dict[llm] = {"judge": OllamaAgent(model=llm, client=ollama.Client("http://atlas1api.eurecom.fr:8019")),
-                                  "path": output_dir / f"ollama/eval_{llm}"}
+        # for llm in ollama_list:
+        #     clean_llm = llm.replace(":", ".")
+        #     llm_dict[llm] = {"judge": OllamaAgent(model=llm, client=ollama.Client("http://atlas1api.eurecom.fr:8019")),
+        #                           "path": args.output_dir + f"/ollama/eval_{clean_llm}"}
 
         for llm in openai_list:
+            clean_llm = llm.replace(":", ".")
             llm_dict[llm] = {"judge": OpenAIAgent(model=llm, client=OpenAI()),
-                                  "path": output_dir / f"openai/eval_{llm}"}
+                                  "path": args.output_dir + f"/openai/eval_{clean_llm}"}
 
         for i in range(args.num_eval):
             for llm in llm_dict:
@@ -84,7 +99,7 @@ if __name__ == "__main__":
                 if llm in ollama_list: ollama_dataset_list.append(llm_dict[llm][f"eval_dataset_{i}"])
                 if llm in openai_list: openai_dataset_list.append(llm_dict[llm][f"eval_dataset_{i}"])
 
-                file_path = pathlib.Path(llm_dict[llm]["path"]) / f"_{i}.json"
+                file_path = pathlib.Path(llm_dict[llm]["path"] + f"_{i}.json")
                 file_path.write_text(llm_dict[llm][f"eval_dataset_{i}"].model_dump_json(indent=4))
 
     if args.use_cache:
@@ -101,7 +116,66 @@ if __name__ == "__main__":
                 openai_dataset_list.append(EvaluationDataset.model_validate_json(child.read_text()))
         print("LLM evaluations loaded", flush=True)
 
-    # Extract assessments and compare to human evaluation
+    # Extract assessments
+    ollama_assessments = [extract_assessments(dataset) for dataset in ollama_dataset_list]
+    openai_assessments = [extract_assessments(dataset) for dataset in openai_dataset_list]
+    human_assessments = extract_assessments(human_eval_dataset)
+
+    # Compare Ollama evaluations with ground truth
+    ollama_metrics = [calculate_metrics(assessment, human_assessments) for assessment in ollama_assessments]
+    ollama_mean = [mean(column) for column in zip(*ollama_metrics)]
+    # ollama_stdev = [stdev(column) for column in zip(*ollama_metrics)]
+
+    print(ollama_mean)
+    # print(ollama_stdev)
+
+    # Compare Openai evaluations with ground truth
+
+    openai_metrics = [calculate_metrics(assessment, human_assessments) for assessment in openai_assessments]
+    openai_mean = [mean(column) for column in zip(*openai_metrics)]
+    # openai_stdev = [stdev(column) for column in zip(*openai_metrics)]
+
+    print(openai_mean)
+    # print(openai_stdev)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    # Print results
+    # print(ollama_metrics)
+    # print(openai_metrics)
+    print("Ollama Model Metrics:")
+    # print(f"Accuracy: {ollama_metrics[0]:.2f}")
+    # print(f"Precision: {ollama_metrics[1]:.2f}")
+    # print(f"Recall: {ollama_metrics[2]:.2f}")
+    # print(f"F1 Score: {ollama_metrics[3]:.2f}")
+
+
+    # print("\nOpenAI Model Metrics:")
+    # print(f"Accuracy: {openai_metrics[0]:.2f}")
+    # print(f"Precision: {openai_metrics[1]:.2f}")
+    # print(f"Recall: {openai_metrics[2]:.2f}")
+    # print(f"F1 Score: {openai_metrics[3]:.2f}")
 
 
 
