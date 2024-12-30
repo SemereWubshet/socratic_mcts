@@ -126,6 +126,7 @@ if __name__ == "__main__":
     ollama_mean = [mean(column) for column in zip(*ollama_metrics)]
     # ollama_stdev = [stdev(column) for column in zip(*ollama_metrics)]
 
+    print("Ollama stats")
     print(ollama_mean)
     # print(ollama_stdev)
 
@@ -135,83 +136,6 @@ if __name__ == "__main__":
     openai_mean = [mean(column) for column in zip(*openai_metrics)]
     # openai_stdev = [stdev(column) for column in zip(*openai_metrics)]
 
+    print("OpenAI stats")
     print(openai_mean)
     # print(openai_stdev)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # Print results
-    # print(ollama_metrics)
-    # print(openai_metrics)
-    print("Ollama Model Metrics:")
-    # print(f"Accuracy: {ollama_metrics[0]:.2f}")
-    # print(f"Precision: {ollama_metrics[1]:.2f}")
-    # print(f"Recall: {ollama_metrics[2]:.2f}")
-    # print(f"F1 Score: {ollama_metrics[3]:.2f}")
-
-
-    # print("\nOpenAI Model Metrics:")
-    # print(f"Accuracy: {openai_metrics[0]:.2f}")
-    # print(f"Precision: {openai_metrics[1]:.2f}")
-    # print(f"Recall: {openai_metrics[2]:.2f}")
-    # print(f"F1 Score: {openai_metrics[3]:.2f}")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    # Ollama
-    # ollama_judge = OllamaAgent(model="llama3.3:70b", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
-    # ollama_eval_dataset = evaluate(interactions_dataset, ollama_judge)
-    # ollama_path.write_text(ollama_eval_dataset.model_dump_json(indent=4))
-
-    # Mistral
-    # mistralnemo_judge = OllamaAgent(model="mistral-nemo:12b-instruct-2407-fp16", client=ollama.Client("http://atlas1api.eurecom.fr:8019"))
-    # mistralnemo_eval_dataset = evaluate(interactions_dataset, mistralnemo_judge)
-    # mistralnemo_path.write_text(mistralnemo_eval_dataset.model_dump_json(indent=4))
-
-    # OpenAI
-    # openai_judge = OpenAIAgent(model="gpt-4o-mini", client=OpenAI()) # Change to gpt 4o
-    # openai_eval_dataset = evaluate(interactions_dataset, openai_judge)
-    # openai_path.write_text(openai_eval_dataset.model_dump_json(indent=4))
-
