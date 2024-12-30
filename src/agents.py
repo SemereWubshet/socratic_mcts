@@ -1,6 +1,7 @@
 import abc
 import json
 import pathlib
+import re
 from typing import Dict, List, Tuple
 
 import httpx
@@ -173,9 +174,16 @@ class Judge:
         assessment = self._llm.query([{"role": "system", "content": Judge.BASE_PROMPT},
                                       {"role": "user", "content": f"# Main Topics\n{main_topics}\n\n"
                                                                   f"# Chat history\n{chat_history}\n\n"}])
-        print("I'm assessment\n")
-        print(assessment)
+        cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
 
-        print("\nDone with assessment")
-        parsed = json.loads(assessment)
+
+        # print("I'm assessment\n")
+        # print(assessment)
+        #
+        # print("I'm cleaned assessment")
+        # cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
+        # print(cleaned_assessment)
+        #
+        # print("\nDone with assessment")
+        parsed = json.loads(cleaned_assessment)
         return parsed["feedback"], parsed["assessment"]
