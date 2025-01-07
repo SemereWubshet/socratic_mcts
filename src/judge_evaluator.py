@@ -50,6 +50,9 @@ if __name__ == "__main__":
     parser.add_argument("--num_eval", type=int, required=False,
                         help="The number of times evaluations are made from which statistics are recorded.",
                         default="2")
+    parser.add_argument("--ollama_address", type=str, required=False,
+                        help="The number of times evaluations are made from which statistics are recorded.",
+                        default="http://atlas1api.eurecom.fr:8019")
     args = parser.parse_args()
 
     # Prepare LLM list
@@ -79,10 +82,10 @@ if __name__ == "__main__":
 
         # Prepare LLM dictionary
         llm_dict = {}
-        # for llm in ollama_list:
-        #     clean_llm = llm.replace(":", ".")
-        #     llm_dict[llm] = {"judge": OllamaAgent(model=llm, client=ollama.Client("http://atlas1api.eurecom.fr:8019")),
-        #                           "path": args.output_dir + f"/ollama/eval_{clean_llm}"}
+        for llm in ollama_list:
+            clean_llm = llm.replace(":", ".")
+            llm_dict[llm] = {"judge": OllamaAgent(model=llm, client=ollama.Client(args.ollama_address)),
+                                  "path": args.output_dir + f"/ollama/eval_{clean_llm}"}
 
         for llm in openai_list:
             clean_llm = llm.replace(":", ".")
