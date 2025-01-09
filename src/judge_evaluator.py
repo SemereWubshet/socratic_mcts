@@ -1,18 +1,27 @@
 import argparse
 import pathlib
+from os import mkdir
+
 import ollama
+import json
 from openai import OpenAI
 
 import shutil
 from typing import Dict, List, Tuple
-# from fsspec.caching import caches
 
+from pydantic import BaseModel
 
 from agents import StudentSeed, LLM, Student, Teacher, Judge, OllamaAgent, OpenAIAgent
 from rollout import Interaction, InteractionDataset, Evaluation, EvaluationDataset, evaluate
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, cohen_kappa_score
 from statistics import mean, stdev
+
+
+class JudgeEvalDataset(BaseModel):
+    model: str
+    analysis: list[Evaluation]
+
 
 # Extract interaction dataset from an evaluation dataset
 def extract_interaction_dataset(evaluation_dataset: EvaluationDataset) -> InteractionDataset:
@@ -22,123 +31,87 @@ def extract_interaction_dataset(evaluation_dataset: EvaluationDataset) -> Intera
     all_interactions.root.append(interaction)
   return all_interactions
 
-# Get assessments from evaluation lists
-def extract_assessments(evaluation_list):
-    return [evaluation.assessment for evaluation in evaluation_list.root]
-
-
-# Function to calculate metrics
-def calculate_metrics(predictions, ground_truth):
-    accuracy = accuracy_score(ground_truth, predictions)
-    precision = precision_score(ground_truth, predictions)
-    recall = recall_score(ground_truth, predictions)
-    f1 = f1_score(ground_truth, predictions)
-    return accuracy, precision, recall, f1
-
 if __name__ == "__main__":
     # Argument parser
     parser = argparse.ArgumentParser()
-    parser.add_argument("--human_eval", type=str, required=True,
+    parser.add_argument("--input_file", type=str, required=True,
                         help="Path to the evaluation dataset with human assessments and feedback.",
                         default="caches/human-eval.json")
     parser.add_argument("--output_dir", type=str, required=True,
                         help="Directory to store evaluation datasets for each model.",
                         default="datasets")
-    parser.add_argument("--use_cache", type=str, required=False,
-                        help="If using cached evaluation files, provide the directory containing them.",
+    parser.add_argument("--use_cache", type=bool, required=False,
+                        help="Enable to utilize cached evaluations",
                         default=False)
-    parser.add_argument("--num_eval", type=int, required=False,
-                        help="The number of times evaluations are made from which statistics are recorded.",
-                        default="2")
     parser.add_argument("--ollama_address", type=str, required=False,
-                        help="The number of times evaluations are made from which statistics are recorded.",
+                        help="The address for ollama server.",
                         default="http://atlas1api.eurecom.fr:8019")
     args = parser.parse_args()
 
+    # Check args
+    if not pathlib.Path(args.input_file).exists():
+        print(f"Input file does not exist!", flush=True)
+        exit(1)
+
+    if not pathlib.Path(args.output_dir).exists():
+        print("Output folder does not exist. \nCreating folder")
+        output_path = pathlib.Path(args.output_dir)
+        mkdir(output_path)
+
     # Prepare LLM list
-    ollama_list = ["llama3.3:70b"] # "mistral-nemo:12b-instruct-2407-fp16"]
-    # Mistral doesn't work because it is not 'smart' enough to give a proper json response
-    openai_list = ["gpt-4o"]
+    ollama_list = ["deepseek-v2:16b"] # ["llama3.3:70b", "mistral-nemo:12b-instruct-2407-fp16"]
+    openai_list = [] # ["gpt-4o"]
 
     # Setup output directory
-    output_dir = pathlib.Path(args.output_dir)
-    interaction_path = output_dir / "interaction.json"
+    output_dir = args.output_dir
 
     # Read the evaluation dataset
-    human_eval_path = pathlib.Path(args.human_eval)
+    human_eval_path = pathlib.Path(args.input_file)
     if not human_eval_path:
         print("Input evaluation dataset not found.", flush=True)
         exit(1)
 
     print("Loading human evaluation dataset", flush=True)
-    human_eval_dataset = EvaluationDataset.model_validate_json(human_eval_path.read_text())
+    json_data = json.loads(human_eval_path.read_text())
+    data = json.dumps(json_data['analysis'], ensure_ascii=False, indent=4)
+    human_eval_dataset = EvaluationDataset.model_validate_json(data)
     ollama_dataset_list = []
     openai_dataset_list = []
 
     if not args.use_cache:
         print("No cache - Loading interactions dataset", flush=True)
         interactions_dataset = extract_interaction_dataset(human_eval_dataset)
-        interaction_path.write_text(interactions_dataset.model_dump_json(indent=4))
 
-        # Prepare LLM dictionary
-        llm_dict = {}
-        for llm in ollama_list:
-            clean_llm = llm.replace(":", ".")
-            llm_dict[llm] = {"judge": OllamaAgent(model=llm, client=ollama.Client(args.ollama_address)),
-                                  "path": args.output_dir + f"/ollama/eval_{clean_llm}"}
+        for llm_name in ollama_list + openai_list:
+            clean_llm_name = llm_name.replace(":", ".")
+            llm_path = pathlib.Path(output_dir + f"/eval_{clean_llm_name}.json")
 
-        for llm in openai_list:
-            clean_llm = llm.replace(":", ".")
-            llm_dict[llm] = {"judge": OpenAIAgent(model=llm, client=OpenAI()),
-                                  "path": args.output_dir + f"/openai/eval_{clean_llm}"}
+            if llm_name in ollama_list:
+                llm_judge = OllamaAgent(model=llm_name, client=ollama.Client(args.ollama_address), temperature=0.)
+            else:
+                llm_judge = OpenAIAgent(model=llm_name, client=OpenAI(), temperature=0.)
 
-        for i in range(args.num_eval):
-            for llm in llm_dict:
-                print(f"Evaluating for {i}th {llm}", flush=True)
-                llm_dict[llm][f"eval_dataset_{i}"] = evaluate(interactions_dataset, llm_dict[llm]["judge"])
-                print(f"Finished evaluation for {llm}\nWriting file {i}")
+            print(f"\nEvaluating {llm_name}", flush=True)
+            analysis = evaluate(interactions_dataset, llm_judge)
+            print(f"Finished evaluation for {llm_name}\nWriting file into {llm_path}")
 
-                # Add dataset to list
-                if llm in ollama_list: ollama_dataset_list.append(llm_dict[llm][f"eval_dataset_{i}"])
-                if llm in openai_list: openai_dataset_list.append(llm_dict[llm][f"eval_dataset_{i}"])
+            judge_eval = JudgeEvalDataset(model=llm_name, analysis=analysis.root)
+            llm_path.write_text(judge_eval.model_dump_json(indent=4))
 
-                file_path = pathlib.Path(llm_dict[llm]["path"] + f"_{i}.json")
-                file_path.write_text(llm_dict[llm][f"eval_dataset_{i}"].model_dump_json(indent=4))
 
-    if args.use_cache:
-        print("Cached LLM evaluations being loaded", flush=True)
-        caches_dir = pathlib.Path(args.use_cache)
-        ollama_dir = caches_dir / "ollama"
-        openai_dir = caches_dir / "openai"
+    if args.use_cache: print("Cached LLM evaluations being loaded", flush=True)
 
-        for child in ollama_dir.iterdir():
-            if child.is_file():
-                ollama_dataset_list.append(EvaluationDataset.model_validate_json(child.read_text()))
-        for child in openai_dir.iterdir():
-            if child.is_file():
-                openai_dataset_list.append(EvaluationDataset.model_validate_json(child.read_text()))
-        print("LLM evaluations loaded", flush=True)
+    human_assessment = [evaluation.assessment for evaluation in human_eval_dataset.root] # human assessment as ground truth
 
-    # Extract assessments
-    ollama_assessments = [extract_assessments(dataset) for dataset in ollama_dataset_list]
-    openai_assessments = [extract_assessments(dataset) for dataset in openai_dataset_list]
-    human_assessments = extract_assessments(human_eval_dataset)
+    cache_dir = pathlib.Path(args.output_dir)
+    evals = {}
+    for child in cache_dir.iterdir():
+        judge_eval = JudgeEvalDataset.model_validate_json(child.read_text())
+        evals[judge_eval.model] = {}
+        evals[judge_eval.model]["assessment"] = [evaluation.assessment for evaluation in judge_eval.analysis]
+        evals[judge_eval.model]["kappa"] = cohen_kappa_score(human_assessment, evals[judge_eval.model]["assessment"])
 
-    # Compare Ollama evaluations with ground truth
-    ollama_metrics = [calculate_metrics(assessment, human_assessments) for assessment in ollama_assessments]
-    ollama_mean = [mean(column) for column in zip(*ollama_metrics)]
-    # ollama_stdev = [stdev(column) for column in zip(*ollama_metrics)]
+    # Print only the model and its kappa score
+    for model, data in evals.items():
+        print(f"{model}, Kappa Score: {data['kappa']}")
 
-    print("Ollama stats")
-    print(ollama_mean)
-    # print(ollama_stdev)
-
-    # Compare Openai evaluations with ground truth
-
-    openai_metrics = [calculate_metrics(assessment, human_assessments) for assessment in openai_assessments]
-    openai_mean = [mean(column) for column in zip(*openai_metrics)]
-    # openai_stdev = [stdev(column) for column in zip(*openai_metrics)]
-
-    print("OpenAI stats")
-    print(openai_mean)
-    # print(openai_stdev)

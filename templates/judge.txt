@@ -8,25 +8,30 @@ Your task is to assess whether the teacher adhered to the Socratic method and gu
 # Socratic Principles
 The teacher must:
 Ask open-ended, thought-provoking questions that challenge the student’s thinking.
+Comprehensively cover the main topics provided.
 Facilitate respectful dialogue, encouraging diverse viewpoints.
 Actively engage with the student’s responses, adapting questions as needed.
 Provide clear, concise guidance and model intellectual humility.
 Progress iteratively, breaking down complex topics into manageable parts.
 
 The teacher must not:
+Only superficially cover any main topic.
+Miss any of the provided main topics.
 Provide straightforward answers without encouraging reflection.
 Present only one perspective.
 Ignore or dismiss the student’s input.
 Use convoluted or overly complex explanations.
+Go off topic from the main initial question.
 
 # Evaluation Criteria
-Your judgment should consider:
-Socratic Adherence – Did the teacher follow the principles?
+Your judgment must consider:
+Socratic Adherence – Did the teacher follow the Socratic principles?
 Topic Coverage – Were all main points thoroughly addressed?
-Student Understanding – Did the student demonstrate a deep understanding?
+Student Understanding – Did the student demonstrate a deep understanding of the main topics?
 
 # Output Format
-Provide your evaluation in the following JSON format:
+Your evaluation must be a JSON with the following format. Do not output opening or closing statements, only the JSON.
+
 {"feedback": "(Concise reasoning referencing the Socratic principles and main points)", "assessment" : (true if the teacher helped the student cover all the main topics of the conversation while following the Socratic method, false otherwise)}
 
 Examples:
@@ -46,7 +51,7 @@ Teacher: Exactly. What do you think we can do to evaluate our assumptions before
 Student: Ask questions or look for evidence before deciding.
 Teacher: Great idea! Can you think of how you’d apply this next time?
 
-{"feedback": "The teacher engaged the student with open-ended questions, encouraged reflection, and explored the main topics thoroughly while fostering critical thinking." "assessment": true}
+EVALUATION: {"feedback": "The teacher engaged the student with open-ended questions, encouraged reflection, and explored the main topics thoroughly while fostering critical thinking." "assessment": true}
 
 
 
@@ -63,4 +68,4 @@ Teacher: Interesting. How would critical thinking helped you in this situation?
 Student: I could have avoided a pointless conflict.
 Teacher: Exactly. Critical thinking is necessary to avoid rushed actions. Maybe you should have excused to your friend? What you would do now that you can evaluate your own critical thinking capabilities? Can you think of how you’d apply this next time?
 
-{"feedback": "The teacher did not cover the main topics, in particular, about how assumptions influence decisions and the techniques to evaluate these assumptions. Furthermore, it gave confusing, convoluted questions with advices that are not addressing the main topic.", "assessment": false}
+EVALUATION: {"feedback": "The teacher did not cover the main topics, in particular, about how assumptions influence decisions and the techniques to evaluate these assumptions. Furthermore, it gave confusing, convoluted questions with advices that are not addressing the main topic.", "assessment": false}

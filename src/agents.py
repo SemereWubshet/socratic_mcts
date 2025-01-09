@@ -2,12 +2,13 @@ import abc
 import json
 import pathlib
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 import httpx
 import ollama
 import openai
 from ollama import ResponseError
+from openai import NotGiven, NOT_GIVEN
 
 
 class LLM(abc.ABC):
@@ -23,12 +24,13 @@ class LLM(abc.ABC):
 
 class OpenAIAgent(LLM):
 
-    def __init__(self, model: str, client: openai.OpenAI):
+    def __init__(self, model: str, client: openai.OpenAI, temperature: Union[float| NotGiven] = NOT_GIVEN):
         self._model = model
         self._client = client
+        self._temperature = temperature
 
     def query(self, messages: List[Dict[str, str]]) -> str:
-        response = self._client.chat.completions.create(model=self._model, messages=messages)
+        response = self._client.chat.completions.create(model=self._model, messages=messages, temperature=self._temperature)
         return response.choices[0].message.content
 
     def healthcheck(self) -> None:
@@ -44,14 +46,15 @@ class OpenAIAgent(LLM):
 
 class OllamaAgent(LLM):
 
-    def __init__(self, model: str, client: ollama.Client):
+    def __init__(self, model: str, client: ollama.Client, temperature: float = 0.3):
         self._model = model
         self._client = client
+        self._temperature = temperature
 
     def query(self, messages: List[Dict[str, str]]) -> str:
         response = self._client.chat(model=self._model,
                                      messages=messages,
-                                     options={"num_ctx": 32_000, "temperature": 0.3})
+                                     options={"num_ctx": 32_000, "temperature": self._temperature})
         return response["message"]["content"]
 
     def healthcheck(self) -> None:
@@ -173,8 +176,9 @@ class Judge:
     def evaluate(self, main_topics: str, chat_history: str) -> Tuple[str, str]:
         assessment = self._llm.query([{"role": "system", "content": Judge.BASE_PROMPT},
                                       {"role": "user", "content": f"# Main Topics\n{main_topics}\n\n"
-                                                                  f"# Chat history\n{chat_history}\n\n"}])
-        cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
+                                                                  f"# Chat history\n{chat_history}\n\n"
+                                                                  f"EVALUATION: "}])
+        # cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
 
 
         # print("I'm assessment\n")
@@ -185,5 +189,5 @@ class Judge:
         # print(cleaned_assessment)
         #
         # print("\nDone with assessment")
-        parsed = json.loads(cleaned_assessment)
+        parsed = json.loads(assessment)
         return parsed["feedback"], parsed["assessment"]
