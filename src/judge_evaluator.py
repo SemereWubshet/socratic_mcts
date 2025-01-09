@@ -59,8 +59,8 @@ if __name__ == "__main__":
         mkdir(output_path)
 
     # Prepare LLM list
-    ollama_list = ["deepseek-v2:16b"] # ["llama3.3:70b", "mistral-nemo:12b-instruct-2407-fp16"]
-    openai_list = [] # ["gpt-4o"]
+    ollama_list = ["llama3.3:70b", "mistral-nemo:12b-instruct-2407-fp16"]
+    openai_list = ["gpt-4o"]
 
     # Setup output directory
     output_dir = args.output_dir
@@ -102,16 +102,44 @@ if __name__ == "__main__":
     if args.use_cache: print("Cached LLM evaluations being loaded", flush=True)
 
     human_assessment = [evaluation.assessment for evaluation in human_eval_dataset.root] # human assessment as ground truth
+    # print(human_assessment)
 
     cache_dir = pathlib.Path(args.output_dir)
     evals = {}
     for child in cache_dir.iterdir():
-        judge_eval = JudgeEvalDataset.model_validate_json(child.read_text())
-        evals[judge_eval.model] = {}
-        evals[judge_eval.model]["assessment"] = [evaluation.assessment for evaluation in judge_eval.analysis]
-        evals[judge_eval.model]["kappa"] = cohen_kappa_score(human_assessment, evals[judge_eval.model]["assessment"])
+        if child.is_file():
+            judge_eval = JudgeEvalDataset.model_validate_json(child.read_text())
+            evals[judge_eval.model] = {}
+            evals[judge_eval.model]["assessment"] = [evaluation.assessment for evaluation in judge_eval.analysis]
+            evals[judge_eval.model]["kappa"] = cohen_kappa_score(human_assessment, evals[judge_eval.model]["assessment"])
+
+    # Print full evaluation
+    # print(evals)
 
     # Print only the model and its kappa score
-    for model, data in evals.items():
-        print(f"{model}, Kappa Score: {data['kappa']}")
+    # for model, data in evals.items():
+    #     print(f"{model}, Kappa Score: {data['kappa']}")
 
+
+    # Save the results into file
+    results_path = output_dir + "/save/results.json"
+    if not pathlib.Path(output_dir + "/save").exists():
+        output_path = pathlib.Path(output_dir + "/save")
+        mkdir(output_path)
+
+    if not pathlib.Path(results_path).exists():
+        # Create the file
+        pathlib.Path(results_path).touch(exist_ok=True)
+
+    with open(results_path, "w") as f:
+        # Extract only the 'model' and 'kappa' keys before saving
+        results_to_save = {model: {"kappa": data["kappa"]} for model, data in evals.items()}
+        json.dump(results_to_save, f, indent=4)
+
+    # Copy judge template
+    judge_in_path = "templates/judge.txt"
+    judge_out_path = output_dir + "/save/judge.txt"
+    shutil.copy2(judge_in_path, judge_out_path)
+
+    print(human_assessment)
+    print(evals['llama3.3:70b']['assessment'])
