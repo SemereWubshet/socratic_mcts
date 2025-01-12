@@ -59,7 +59,7 @@ if __name__ == "__main__":
         mkdir(output_path)
 
     # Prepare LLM list
-    ollama_list = ["llama3.3:70b", "mistral-nemo:12b-instruct-2407-fp16"]
+    ollama_list = ["llama3.3:70b", "mistral-nemo:12b-instruct-2407-fp16", "phi4"]
     openai_list = ["gpt-4o"]
 
     # Setup output directory
@@ -102,7 +102,6 @@ if __name__ == "__main__":
     if args.use_cache: print("Cached LLM evaluations being loaded", flush=True)
 
     human_assessment = [evaluation.assessment for evaluation in human_eval_dataset.root] # human assessment as ground truth
-    # print(human_assessment)
 
     cache_dir = pathlib.Path(args.output_dir)
     evals = {}
@@ -112,14 +111,6 @@ if __name__ == "__main__":
             evals[judge_eval.model] = {}
             evals[judge_eval.model]["assessment"] = [evaluation.assessment for evaluation in judge_eval.analysis]
             evals[judge_eval.model]["kappa"] = cohen_kappa_score(human_assessment, evals[judge_eval.model]["assessment"])
-
-    # Print full evaluation
-    # print(evals)
-
-    # Print only the model and its kappa score
-    # for model, data in evals.items():
-    #     print(f"{model}, Kappa Score: {data['kappa']}")
-
 
     # Save the results into file
     results_path = output_dir + "/save/results.json"
