@@ -8,3 +8,5 @@ google-generativeai
 datasets
 pydantic==2.10.0
 scikit-learn
+transformers[torch]==4.48.0
+torch
