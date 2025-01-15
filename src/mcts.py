@@ -128,12 +128,9 @@ class TeacherNode:
         self.child: Optional[StudentNode] = None
 
         # MCTS
-        self.n: int = 1
+        self.n: int = 0
         self.w: float = 0.
-
-    @property
-    def q(self) -> float:
-        return self.w / self.n
+        self.q: float = 0.
 
     def expand(self, student: Student) -> "StudentNode":
         assert self.child is None
@@ -141,12 +138,6 @@ class TeacherNode:
         question, end = student.chat(history)
         student_node = StudentNode(question, self, end)
         self.child = student_node
-
-        node: TeacherNode = self
-        while node is not None:
-            node.n += 1
-            node = node.parent.parent
-
         return student_node
 
     def history(self) -> ChatHistory:
@@ -166,7 +157,8 @@ def select(root: StudentNode) -> TeacherNode:
     q = np.array([c.q for c in root.children])
     q[terminal_states] = -np.inf
 
-    idx = int(np.argmax(q + np.sqrt(2 * np.log(N) / ni)))
+    u = np.sqrt(0.1 * np.log(1 + N) / (1 + ni))
+    idx = int(np.argmax(q + u))
     selected = root.children[idx]
     student_node = selected.child
 
@@ -206,6 +198,7 @@ def backup(leaf: StudentNode) -> None:
     while teacher_node is not None:
         teacher_node.n += 1
         teacher_node.w += leaf.v
+        teacher_node.q = teacher_node.w / teacher_node.n
         teacher_node = teacher_node.parent.parent
 
 
