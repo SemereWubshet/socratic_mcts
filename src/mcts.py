@@ -158,10 +158,6 @@ class TeacherNode:
         return self.parent.depth()
 
 
-class BatchData:
-    pass
-
-
 def select(root: StudentNode) -> TeacherNode:
     ni = np.array([c.n for c in root.children])
     N = np.sum(ni)
