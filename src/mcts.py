@@ -291,5 +291,14 @@ if __name__ == "__main__":
 
     model = "llama3.3:70b"
     judge_llm = OllamaAgent(model=model, client=ollama.Client(ollama_address), temperature=0.)
+
+    test = OllamaAgent(model=model, client=ollama.Client(ollama_address), temperature=0.)
+    response = test._client.chat(model=test.model,
+                                 messages="How are you?",
+                                 options={"num_ctx": 32_000, "temperature": test._temperature})
+    output = response["message"]["content"]
+    print(output)
+
     # TODO: num_of_conversations ~60-70 (start with 15 x 5 training iterations)
     mcts_train(llm, llm, teacher_llm, judge_llm, 1, 1, max_depth=1)
+
