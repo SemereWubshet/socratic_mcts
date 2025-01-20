@@ -133,36 +133,36 @@ class Teacher:
                                 {"role": "user", "content": f"# Chat history\n{chat_history}\n\nOUTPUT: "}])
 
 
-class MCTSTeacher(Teacher):
-
-    def __init__(self, llm: LLM):
-        super().__init__(llm)
-        self.value_fn = ValueFn("allenai/longformer-base-4096")  # TODO: open model from checkpoint
-        self.budget = 15
-        judge = Judge(judge_llm)
-
-    def chat(self, chat_history: str) -> str:
-        # TODO: figure this out.
-        teacher = Teacher(teacher_llm)
-
-        seeded_judge = SeededJudge(seed, judge)
-        student_type = random.randint(0, len(Student.TYPES) - 1)
-        student = Student(student_llm, seed.main_topics, student_type)
-
-        root = StudentNode(chat_history)
-        root.v = self.value_fn(str(root.history()))
-        root.expand(teacher)
-        root.expand(teacher)
-        root.expand(teacher)
-
-        ended = False
-        while not ended:
-            # TODO: until budget
-            selected = select(root)
-            ended, leaf = expand(selected, student, teacher, self.value_fn, seeded_judge, max_depth=15)
-            backup(leaf)
-
-        return None
+# class MCTSTeacher(Teacher):
+#
+#     def __init__(self, llm: LLM):
+#         super().__init__(llm)
+#         self.value_fn = ValueFn("allenai/longformer-base-4096")  # TODO: open model from checkpoint
+#         self.budget = 15
+#         judge = Judge(judge_llm)
+#
+#     def chat(self, chat_history: str) -> str:
+#         # TODO: figure this out.
+#         teacher = Teacher(teacher_llm)
+#
+#         seeded_judge = SeededJudge(seed, judge)
+#         student_type = random.randint(0, len(Student.TYPES) - 1)
+#         student = Student(student_llm, seed.main_topics, student_type)
+#
+#         root = StudentNode(chat_history)
+#         root.v = self.value_fn(str(root.history()))
+#         root.expand(teacher)
+#         root.expand(teacher)
+#         root.expand(teacher)
+#
+#         ended = False
+#         while not ended:
+#             # TODO: until budget
+#             selected = select(root)
+#             ended, leaf = expand(selected, student, teacher, self.value_fn, seeded_judge, max_depth=15)
+#             backup(leaf)
+#
+#         return None
 
 
 class Student:
