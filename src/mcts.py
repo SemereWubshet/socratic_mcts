@@ -13,6 +13,9 @@ from transformers import TrainingArguments
 from agents import Student, Teacher, Judge, OllamaAgent, LLM
 from rollout import gen_seeds, ChatHistory, Message, Seed
 
+import torch._dynamo
+torch._dynamo.config.suppress_errors = True
+torch._inductor.config.triton.cudagraphs = False
 
 def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
     """Calculates the discounted cumulative sum over a reward sequence `x`.
@@ -59,10 +62,10 @@ class ValueFn:
     def __init__(self):
         self.tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
         self.model = ModernBertForSequenceClassification.from_pretrained("answerdotai/ModernBERT-base",
-                                                                         num_labels=1) #Octavia .to("cuda:0")
+                                                                         num_labels=1).to("cuda:0")
 
     def __call__(self, history: str) -> float:
-        _history = self.tokenizer(history, return_tensors="pt") #Octavia .to("cuda:0")
+        _history = self.tokenizer(history, return_tensors="pt").to("cuda:0")
         with torch.no_grad():
             value = float(self.model(**_history).logits)
         return value
@@ -255,12 +258,12 @@ def mcts_train(seed_llm: LLM,
                 dataset["history"].append(str(node.history()))
                 dataset["value_target"].append(value_target)
 
+
             def tokenize_function(examples):
                 return value_fn.tokenizer(
                     # TODO: figure out the max_length: run one or two examples and check the max_length of tokens
                     #       np.sum(np.array(tokenized_dataset["input_ids"][X]) != 50283)
-                    examples["history"], padding='max_length', truncation=True, max_length=1024
-                ) #Octavia .to("cuda:0")
+                    examples["history"], padding='max_length', truncation=True, max_length=1024).to("cuda:0")
 
             hf_dataset = Dataset.from_dict(dataset)
             hf_dataset = hf_dataset.rename_column("value_target", "labels")
@@ -271,7 +274,7 @@ def mcts_train(seed_llm: LLM,
             trainer.train()
 
             del trainer
-            #Octavia torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
@@ -292,13 +295,5 @@ if __name__ == "__main__":
     model = "llama3.3:70b"
     judge_llm = OllamaAgent(model=model, client=ollama.Client(ollama_address), temperature=0.)
 
-    test = OllamaAgent(model=model, client=ollama.Client(ollama_address), temperature=0.)
-    response = test._client.chat(model=test.model,
-                                 messages="How are you?",
-                                 options={"num_ctx": 32_000, "temperature": test._temperature})
-    output = response["message"]["content"]
-    print(output)
-
     # TODO: num_of_conversations ~60-70 (start with 15 x 5 training iterations)
     mcts_train(llm, llm, teacher_llm, judge_llm, 1, 1, max_depth=1)
-
