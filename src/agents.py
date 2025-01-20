@@ -142,7 +142,7 @@ class Teacher:
 #         judge = Judge(judge_llm)
 #
 #     def chat(self, chat_history: str) -> str:
-#         # TODO: figure this out.
+#         # TODO: figure this out. Yes
 #         teacher = Teacher(teacher_llm)
 #
 #         seeded_judge = SeededJudge(seed, judge)
