@@ -1,7 +1,7 @@
 import abc
 import json
 import pathlib
-import re
+import random
 from typing import Dict, List, Tuple, Union
 
 import httpx
@@ -9,6 +9,8 @@ import ollama
 import openai
 from ollama import ResponseError
 from openai import NotGiven, NOT_GIVEN
+
+from mcts import SeededJudge, StudentNode, select, expand, backup, ValueFn
 
 
 class LLM(abc.ABC):
@@ -24,13 +26,14 @@ class LLM(abc.ABC):
 
 class OpenAIAgent(LLM):
 
-    def __init__(self, model: str, client: openai.OpenAI, temperature: Union[float| NotGiven] = NOT_GIVEN):
+    def __init__(self, model: str, client: openai.OpenAI, temperature: Union[float | NotGiven] = NOT_GIVEN):
         self._model = model
         self._client = client
         self._temperature = temperature
 
     def query(self, messages: List[Dict[str, str]]) -> str:
-        response = self._client.chat.completions.create(model=self._model, messages=messages, temperature=self._temperature)
+        response = self._client.chat.completions.create(model=self._model, messages=messages,
+                                                        temperature=self._temperature)
         return response.choices[0].message.content
 
     def healthcheck(self) -> None:
@@ -130,6 +133,38 @@ class Teacher:
                                 {"role": "user", "content": f"# Chat history\n{chat_history}\n\nOUTPUT: "}])
 
 
+class MCTSTeacher(Teacher):
+
+    def __init__(self, llm: LLM):
+        super().__init__(llm)
+        self.value_fn = ValueFn("allenai/longformer-base-4096")  # TODO: open model from checkpoint
+        self.budget = 15
+        judge = Judge(judge_llm)
+
+    def chat(self, chat_history: str) -> str:
+        # TODO: figure this out.
+        teacher = Teacher(teacher_llm)
+
+        seeded_judge = SeededJudge(seed, judge)
+        student_type = random.randint(0, len(Student.TYPES) - 1)
+        student = Student(student_llm, seed.main_topics, student_type)
+
+        root = StudentNode(chat_history)
+        root.v = self.value_fn(str(root.history()))
+        root.expand(teacher)
+        root.expand(teacher)
+        root.expand(teacher)
+
+        ended = False
+        while not ended:
+            # TODO: until budget
+            selected = select(root)
+            ended, leaf = expand(selected, student, teacher, self.value_fn, seeded_judge, max_depth=15)
+            backup(leaf)
+
+        return None
+
+
 class Student:
     TYPES = (
         "You are a student who grasps and applies concepts effortlessly across domains. However, you tend to disengage "
@@ -179,7 +214,6 @@ class Judge:
                                                                   f"# Chat history\n{chat_history}\n\n"
                                                                   f"EVALUATION: "}])
         # cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
-
 
         # print("I'm assessment\n")
         # print(assessment)
