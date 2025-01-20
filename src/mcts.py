@@ -1,21 +1,20 @@
 import argparse
+import pathlib
 import random
-from typing import Optional, Tuple, Callable, List
+from typing import Optional, Tuple, Callable, List, Dict
 
 import numpy as np
 import ollama
 import scipy
 import torch
-from datasets import load_dataset, tqdm, Dataset
-from transformers import AutoTokenizer, ModernBertForSequenceClassification, Trainer
+from datasets import load_dataset, Dataset
+from tqdm import tqdm
+from transformers import AutoTokenizer, Trainer, AutoModelForSequenceClassification
 from transformers import TrainingArguments
 
 from agents import Student, Teacher, Judge, OllamaAgent, LLM
 from rollout import gen_seeds, ChatHistory, Message, Seed
 
-import torch._dynamo
-torch._dynamo.config.suppress_errors = True
-torch._inductor.config.triton.cudagraphs = False
 
 def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
     """Calculates the discounted cumulative sum over a reward sequence `x`.
@@ -59,16 +58,26 @@ class SeededJudge:
 
 class ValueFn:
 
-    def __init__(self):
-        self.tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-base")
-        self.model = ModernBertForSequenceClassification.from_pretrained("answerdotai/ModernBERT-base",
-                                                                         num_labels=1).to("cuda:0")
+    def __init__(self, base_model: str, max_length: int = 1024):
+        self._max_length = max_length
+        self._base_model = base_model
+        self._tokenizer = AutoTokenizer.from_pretrained(base_model)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            base_model, num_labels=1, attention_window=max_length
+        ).to("cuda:0")
 
     def __call__(self, history: str) -> float:
-        _history = self.tokenizer(history, return_tensors="pt").to("cuda:0")
+        _history = self._tokenizer(
+            history, return_tensors="pt", truncation=True, max_length=self._max_length
+        ).to("cuda:0")
         with torch.no_grad():
             value = float(self.model(**_history).logits)
         return value
+
+    def batch_tokenize(self, dataset: Dict[str, List[str]]) -> Dict[str, List[str]]:
+        return self._tokenizer(
+            dataset["history"], return_tensors="pt", padding="max_length", truncation=True, max_length=self._max_length
+        ).to("cuda:0")
 
 
 class StudentNode:
@@ -210,6 +219,7 @@ def mcts_train(seed_llm: LLM,
                student_llm: LLM,
                teacher_llm: LLM,
                judge_llm: LLM,
+               train_dir: pathlib.Path,
                num_of_conversations: int,
                train_iterations: int,
                max_depth: int = 15,
@@ -219,20 +229,22 @@ def mcts_train(seed_llm: LLM,
 
     judge = Judge(judge_llm)
     teacher = Teacher(teacher_llm)
-    value_fn = ValueFn()
+    value_fn = ValueFn("allenai/longformer-base-4096")
 
-    for _ in tqdm(range(train_iterations)):
+    for i in tqdm(range(train_iterations)):
+        random.seed(None)  # Trainer is setting a random-wide seed. Need to reset to get randomness back.
         seed_dataset = gen_seeds(wikipedia, seed_llm, num_of_conversations)
 
         dataset = {"history": [], "value_target": []}
 
+        print("Building dataset...")
         for seed in tqdm(seed_dataset.root):
             seeded_judge = SeededJudge(seed, judge)
             student_type = random.randint(0, len(Student.TYPES) - 1)
             student = Student(student_llm, seed.main_topics, student_type)
 
             root = StudentNode(seed.question)
-            root.v = value_fn(str(root))
+            root.v = value_fn(str(root.history()))
             root.expand(teacher)
             root.expand(teacher)
             root.expand(teacher)
@@ -258,23 +270,21 @@ def mcts_train(seed_llm: LLM,
                 dataset["history"].append(str(node.history()))
                 dataset["value_target"].append(value_target)
 
+        hf_dataset = Dataset.from_dict(dataset)
+        hf_dataset = hf_dataset.rename_column("value_target", "labels")
+        tokenized_dataset = hf_dataset.map(value_fn.batch_tokenize, batched=True, batch_size=8).shuffle()
 
-            def tokenize_function(examples):
-                return value_fn.tokenizer(
-                    # TODO: figure out the max_length: run one or two examples and check the max_length of tokens
-                    #       np.sum(np.array(tokenized_dataset["input_ids"][X]) != 50283)
-                    examples["history"], padding='max_length', truncation=True, max_length=1024).to("cuda:0")
+        training_args = TrainingArguments(
+            output_dir=str(train_dir / f"iteration-{i}"),
+            num_train_epochs=1.,
+            learning_rate=1e-5
+        )
+        trainer = Trainer(model=value_fn.model, args=training_args, train_dataset=tokenized_dataset)
+        print(f"Starting training.... len={len(tokenized_dataset['labels'])}")
+        trainer.train()
 
-            hf_dataset = Dataset.from_dict(dataset)
-            hf_dataset = hf_dataset.rename_column("value_target", "labels")
-            tokenized_dataset = hf_dataset.map(tokenize_function, batched=True).shuffle()
-
-            training_args = TrainingArguments(output_dir="test_trainer", num_train_epochs=1.)
-            trainer = Trainer(model=value_fn.model, args=training_args, train_dataset=tokenized_dataset)
-            trainer.train()
-
-            del trainer
-            torch.cuda.empty_cache()
+        del trainer
+        torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
@@ -283,6 +293,8 @@ if __name__ == "__main__":
     parser.add_argument("--ollama_address", type=str, required=False,
                         help="The address for ollama server.",
                         default="http://atlas1api.eurecom.fr")
+    parser.add_argument("--train_dir", type=pathlib.Path, required=True,
+                        help="Path to where to store training models.")
     args = parser.parse_args()
 
     ollama_address = args.ollama_address
@@ -296,4 +308,4 @@ if __name__ == "__main__":
     judge_llm = OllamaAgent(model=model, client=ollama.Client(ollama_address), temperature=0.)
 
     # TODO: num_of_conversations ~60-70 (start with 15 x 5 training iterations)
-    mcts_train(llm, llm, teacher_llm, judge_llm, 1, 1, max_depth=1)
+    mcts_train(llm, llm, teacher_llm, judge_llm, args.train_dir, 5, 3, max_depth=10)
