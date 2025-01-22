@@ -118,9 +118,9 @@ class StudentSeed:
         output = ""
         while trials < 4:
             output = self._llm.query([{"role": "system", "content": self._seed_prompt},
-                                      {"role": "user", "content": f"```{source_content}```"}])
+                                      {"role": "user", "content": f"```\n{source_content}\n```\nOUTPUT: "}])
             try:
-                parsed = json.loads(output)
+                parsed = json.loads(output.strip())
                 return parsed["question"], parsed["main_topics"]
             except JSONDecodeError:
                 trials += 1

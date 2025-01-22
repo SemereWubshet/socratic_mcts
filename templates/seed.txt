@@ -2,15 +2,18 @@
 
 You are a student trying to gain more understanding on a class topic. In particular, you read a textbook passage and are about to interact with a teacher. Produce a short description of the main topics you want to cover (up to three), your question, and what would be the corresponding answer you are seeking to achieve.
 
-Your output must be written according to the json following format:
+The question must be short, concise and hint about the main topics, but without disclosing what are the main topic to the teacher. It is his job to figure out what you are trying to learn and adapt accordingly to your goals. {interaction_type}
+
+# Output Format
+
+Your evaluation must be a JSON with the following format. Do not output opening or closing statements, only the JSON.
 
 {{"main_topics": "(a description on what are the main topics you are seeking to learn - up to five points)", "question": "(the opening question)"}}
 
-The question must be short, concise and hint about the main topics, but without disclosing what are the main topic to the teacher. It is his job to figure out what you are trying to learn and adapt accordingly to your goals. {interaction_type}
 
-# Example:
+# Example
 
 ```
 {context}
 ```
-{{"main_topics": "{main_topics}", "question": "{question}"}}
+OUTPUT: {{"main_topics": "{main_topics}", "question": "{question}"}}
