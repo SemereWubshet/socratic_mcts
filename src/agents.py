@@ -173,7 +173,7 @@ class Student:
              "content": f"# Main topics\n{self._main_topics}\n\n# Chat History\n{chat_history}\n\nOUTPUT: "}
         ])
 
-        parsed = json.loads(answer)
+        parsed = json.loads(answer.strip())
 
         return parsed["answer"], parsed["end"]
 
