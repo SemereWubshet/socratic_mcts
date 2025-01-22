@@ -133,7 +133,12 @@ if __name__ == "__main__":
              " This argument expects 3 parameters. The service to use: openai or ollama. The access "
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr"))
+        default=OllamaAgent(
+            "mistral-nemo:12b-instruct-2407-fp16",
+            ollama.Client("http://atlas1api.eurecom.fr"),
+            temperature=0.,
+            num_ctx=32_000
+        )
     )
     parser.add_argument(
         "--teacher-llm", nargs=3, action=LLMAction,
@@ -141,7 +146,12 @@ if __name__ == "__main__":
              " This argument expects 3 parameters. The service to use: openai or ollama. The access "
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr"))
+        default=OllamaAgent(
+            "mistral-nemo:12b-instruct-2407-fp16",
+            ollama.Client("http://atlas1api.eurecom.fr"),
+            temperature=0.,
+            num_ctx=32_000
+        )
     )
     parser.add_argument(
         "--judge-llm", nargs=3, action=LLMAction,
