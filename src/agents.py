@@ -167,15 +167,25 @@ class Student:
         self._student_prompt = Student.BASE_PROMPT.format(STUDENT_TYPE=Student.TYPES[student_type])
 
     def chat(self, chat_history: str) -> Tuple[str, bool]:
-        answer = self._llm.query([
-            {"role": "system", "content": self._student_prompt},
-            {"role": "user",
-             "content": f"# Main topics\n{self._main_topics}\n\n# Chat History\n{chat_history}\n\nOUTPUT: "}
-        ])
+        trials = 0
+        answer = ""
+        source_content = ""
+        while trials < 4:
+            source_content = f"# Main topics\n{self._main_topics}\n\n# Chat History\n{chat_history}\n\nOUTPUT: "
+            answer = self._llm.query([
+                {"role": "system", "content": self._student_prompt},
+                {"role": "user",
+                 "content": source_content}
+            ])
+            try:
+                parsed = json.loads(answer.strip())
+                return parsed["answer"], parsed["end"]
+            except JSONDecodeError:
+                trials += 1
 
-        parsed = json.loads(answer.strip())
-
-        return parsed["answer"], parsed["end"]
+        raise RuntimeError(
+            f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {answer}"
+        )
 
 
 class Judge:
