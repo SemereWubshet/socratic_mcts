@@ -1,7 +1,7 @@
 import abc
 import json
 import pathlib
-import re
+from json import JSONDecodeError
 from typing import Dict, List, Tuple, Union, Any
 
 import httpx
@@ -24,13 +24,14 @@ class LLM(abc.ABC):
 
 class OpenAIAgent(LLM):
 
-    def __init__(self, model: str, client: openai.OpenAI, temperature: Union[float| NotGiven] = NOT_GIVEN):
+    def __init__(self, model: str, client: openai.OpenAI, temperature: Union[float | NotGiven] = NOT_GIVEN):
         self._model = model
         self._client = client
         self._temperature = temperature
 
     def query(self, messages: List[Dict[str, str]]) -> str:
-        response = self._client.chat.completions.create(model=self._model, messages=messages, temperature=self._temperature)
+        response = self._client.chat.completions.create(model=self._model, messages=messages,
+                                                        temperature=self._temperature)
         return response.choices[0].message.content
 
     def healthcheck(self) -> None:
@@ -113,10 +114,20 @@ class StudentSeed:
         self._seed_prompt = StudentSeed.BASE_PROMPT.format(**StudentSeed.INTERACTION_TYPES[interaction_type])
 
     def gen_seed(self, source_content: str) -> Tuple[str, str]:
-        output = self._llm.query([{"role": "system", "content": self._seed_prompt},
-                                  {"role": "user", "content": f"```{source_content}```"}])
-        parsed = json.loads(output)
-        return parsed["question"], parsed["main_topics"]
+        trials = 0
+        output = ""
+        while trials < 4:
+            output = self._llm.query([{"role": "system", "content": self._seed_prompt},
+                                      {"role": "user", "content": f"```{source_content}```"}])
+            try:
+                parsed = json.loads(output)
+                return parsed["question"], parsed["main_topics"]
+            except JSONDecodeError:
+                trials += 1
+
+        raise RuntimeError(
+            f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {output}"
+        )
 
 
 class Teacher:
@@ -179,7 +190,6 @@ class Judge:
                                                                   f"# Chat history\n{chat_history}\n\n"
                                                                   f"EVALUATION: "}])
         # cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
-
 
         # print("I'm assessment\n")
         # print(assessment)
