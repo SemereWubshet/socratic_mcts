@@ -149,7 +149,7 @@ if __name__ == "__main__":
         default=OllamaAgent(
             "mistral-nemo:12b-instruct-2407-fp16",
             ollama.Client("http://atlas1api.eurecom.fr"),
-            temperature=0.,
+            temperature=1.4,
             num_ctx=32_000
         )
     )
