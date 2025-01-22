@@ -1,4 +1,5 @@
 import argparse
+import json
 import math
 import pathlib
 import shutil
@@ -7,6 +8,7 @@ from collections import defaultdict
 import numpy as np
 import ollama
 import scipy
+import torch
 from datasets import load_dataset, Dataset
 from tqdm import tqdm
 from transformers import Trainer
@@ -55,9 +57,11 @@ def vf_train(evaluation_dataset: EvaluationDataset,
              num_iterations: int,
              gamma: float = 1.,
              _lambda: float = 0.8) -> None:
-    dataset = defaultdict(list)
+    losses = []
 
     for it in tqdm(range(num_iterations)):
+        dataset = defaultdict(list)
+
         for i in evaluation_dataset.root:
             assessment = i.assessment
             history = i.interaction.chat_history.root
@@ -87,7 +91,14 @@ def vf_train(evaluation_dataset: EvaluationDataset,
         )
         trainer = Trainer(model=value_fn.model, args=training_args, train_dataset=tokenized_dataset)
         print(f"Starting training.... len={len(tokenized_dataset['labels'])}")
-        trainer.train()
+        result = trainer.train()
+
+        losses.append({"iteration": it, "training_loss": result.training_loss})
+
+        del trainer
+        torch.cuda.empty_cache()
+
+    (train_dir / "train_losses.json").write_text(json.dumps(losses))
 
 
 if __name__ == "__main__":
@@ -148,6 +159,11 @@ if __name__ == "__main__":
         help="GPU id to be used for training",
         default="cuda:0"
     )
+    parser.add_argument(
+        "--context-window", type=int,
+        help="The context window to finetune the model",
+        default=768
+    )
 
     parser.add_argument("--use-cache", action="store_true", help="Don't run subprocess if output files exist")
     args = parser.parse_args()
@@ -201,7 +217,7 @@ if __name__ == "__main__":
 
     print()
     print("Starting training....")
-    value_fn = ValueFn(args.predictor_model, gpu=args.gpu)
+    value_fn = ValueFn(args.predictor_model, max_length=args.context_window, gpu=args.gpu)
     vf_train(evaluations_dataset, value_fn, output_dir / "train", args.num_iterations, args.gamma, args.lambd)
 
     print()
