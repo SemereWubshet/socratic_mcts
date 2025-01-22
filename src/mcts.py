@@ -58,18 +58,19 @@ class SeededJudge:
 
 class ValueFn:
 
-    def __init__(self, base_model: str, max_length: int = 1024):
+    def __init__(self, base_model: str, max_length: int = 1024, gpu: str = "cuda:0"):
         self._max_length = max_length
         self._base_model = base_model
+        self._gpu = gpu
         self._tokenizer = AutoTokenizer.from_pretrained(base_model)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             base_model, num_labels=1, attention_window=max_length
-        ).to("cuda:0")
+        ).to(self._gpu)
 
     def __call__(self, history: str) -> float:
         _history = self._tokenizer(
             history, return_tensors="pt", truncation=True, max_length=self._max_length
-        ).to("cuda:0")
+        ).to(self._gpu)
         with torch.no_grad():
             value = float(self.model(**_history).logits)
         return value
@@ -77,7 +78,7 @@ class ValueFn:
     def batch_tokenize(self, dataset: Dict[str, List[str]]) -> Dict[str, List[str]]:
         return self._tokenizer(
             dataset["history"], return_tensors="pt", padding="max_length", truncation=True, max_length=self._max_length
-        ).to("cuda:0")
+        ).to(self._gpu)
 
 
 class StudentNode:

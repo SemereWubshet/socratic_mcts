@@ -2,7 +2,7 @@ import abc
 import json
 import pathlib
 import re
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple, Union, Any
 
 import httpx
 import ollama
@@ -46,15 +46,15 @@ class OpenAIAgent(LLM):
 
 class OllamaAgent(LLM):
 
-    def __init__(self, model: str, client: ollama.Client, temperature: float = 0.3):
+    def __init__(self, model: str, client: ollama.Client, **options: Dict[str, Any]):
         self._model = model
         self._client = client
-        self._temperature = temperature
+        self._options = options
 
     def query(self, messages: List[Dict[str, str]]) -> str:
         response = self._client.chat(model=self._model,
                                      messages=messages,
-                                     options={"num_ctx": 32_000, "temperature": self._temperature})
+                                     options=self._options)
         return response["message"]["content"]
 
     def healthcheck(self) -> None:
