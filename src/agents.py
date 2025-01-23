@@ -21,6 +21,11 @@ class LLM(abc.ABC):
     def healthcheck(self) -> None:
         ...
 
+    @property
+    @abc.abstractmethod
+    def model_name(self) -> str:
+        ...
+
 
 class OpenAIAgent(LLM):
 
@@ -43,6 +48,10 @@ class OpenAIAgent(LLM):
         available_models = [m.id for m in models]
         if self._model not in available_models:
             raise ValueError(f"Invalid model. Expected one of {available_models}")
+
+    @property
+    def model_name(self) -> str:
+        return self._model
 
 
 class OllamaAgent(LLM):
@@ -72,6 +81,10 @@ class OllamaAgent(LLM):
                 self._client.pull(self._model)
             except ResponseError as e:
                 raise ValueError("Model is unavailable. Unable to pull it.", e)
+
+    @property
+    def model_name(self) -> str:
+        return self._model
 
 
 class StudentSeed:
@@ -140,6 +153,9 @@ class Teacher:
         return self._llm.query([{"role": "system", "content": Teacher.BASE_PROMPT},
                                 {"role": "user", "content": f"# Chat history\n{chat_history}\n\nOUTPUT: "}])
 
+    def model_name(self) -> str:
+        return self._llm.model_name
+
 
 class Student:
     TYPES = (
@@ -161,10 +177,10 @@ class Student:
 
     BASE_PROMPT = pathlib.Path("./templates/student.txt").read_text()
 
-    def __init__(self, llm: LLM, main_topics: str, student_type: int):
+    def __init__(self, llm: LLM, main_topics: str, student_type: str):
         self._llm = llm
         self._main_topics = main_topics
-        self._student_prompt = Student.BASE_PROMPT.format(STUDENT_TYPE=Student.TYPES[student_type])
+        self._student_prompt = Student.BASE_PROMPT.format(STUDENT_TYPE=student_type)
 
     def chat(self, chat_history: str) -> Tuple[str, bool]:
         trials = 0

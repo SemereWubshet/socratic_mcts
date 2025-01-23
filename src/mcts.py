@@ -80,6 +80,10 @@ class ValueFn:
             dataset["history"], return_tensors="pt", padding="max_length", truncation=True, max_length=self._max_length
         ).to(self._gpu)
 
+    def save(self, path: pathlib.Path) -> None:
+        self.model.save_pretrained(path)
+        self._tokenizer.save_pretrained(path)
+
 
 class StudentNode:
 
@@ -96,7 +100,7 @@ class StudentNode:
     def expand(self, teacher: Teacher) -> "TeacherNode":
         assert not self.end
         history = self.history()
-        reply = teacher.chat(history)
+        reply = teacher.chat(str(history))
         teacher_node = TeacherNode(reply, self)
         self.children.append(teacher_node)
         return teacher_node
@@ -149,7 +153,7 @@ class TeacherNode:
     def expand(self, student: Student) -> "StudentNode":
         assert self.child is None
         history = self.history()
-        question, end = student.chat(history)
+        question, end = student.chat(str(history))
         student_node = StudentNode(question, self, end)
         self.child = student_node
         return student_node
@@ -241,8 +245,8 @@ def mcts_train(seed_llm: LLM,
         print("Building dataset...")
         for seed in tqdm(seed_dataset.root):
             seeded_judge = SeededJudge(seed, judge)
-            student_type = random.randint(0, len(Student.TYPES) - 1)
-            student = Student(student_llm, seed.main_topics, student_type)
+            type_idx = random.randint(0, len(Student.TYPES) - 1)
+            student = Student(student_llm, seed.main_topics, Student.TYPES[type_idx])
 
             root = StudentNode(seed.question)
             root.v = value_fn(str(root.history()))

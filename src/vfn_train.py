@@ -14,7 +14,7 @@ from tqdm import tqdm
 from transformers import Trainer
 from transformers import TrainingArguments
 
-from agents import OllamaAgent
+from agents import OllamaAgent, Teacher
 from mcts import ValueFn
 from rollout import gen_seeds, SeedDataset, InteractionDataset, \
     gen_teacher_student_interactions, EvaluationDataset, evaluate, ChatHistory
@@ -99,6 +99,9 @@ def vf_train(evaluation_dataset: EvaluationDataset,
         torch.cuda.empty_cache()
 
     (train_dir / "train_losses.json").write_text(json.dumps(losses))
+
+    model_dir = train_dir / "model"
+    value_fn.save(model_dir)
 
 
 if __name__ == "__main__":
@@ -216,7 +219,7 @@ if __name__ == "__main__":
         print()
         print("Creating interactions dataset", flush=True)
         interactions_dataset = gen_teacher_student_interactions(
-            seed_dataset, args.student_llm, args.teacher_llm, max_interactions=args.max_interactions
+            seed_dataset, args.student_llm, Teacher(args.teacher_llm), max_interactions=args.max_interactions
         )
         interactions_path.write_text(interactions_dataset.model_dump_json(indent=4))
         evaluations_path.unlink(missing_ok=True)

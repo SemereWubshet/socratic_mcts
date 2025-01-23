@@ -112,15 +112,14 @@ def gen_seeds(
 def gen_teacher_student_interactions(
         seeds: SeedDataset,
         student_llm: LLM,
-        teacher_llm: LLM,
+        teacher: Teacher,
         max_interactions: int = 3
 ) -> InteractionDataset:
-    teacher = Teacher(teacher_llm)
 
     interactions = InteractionDataset([])
     for seed in tqdm(seeds.root):
-        student_type = random.randint(0, len(Student.TYPES) - 1)
-        student = Student(student_llm, seed.main_topics, student_type)
+        type_idx = random.randint(0, len(Student.TYPES) - 1)
+        student = Student(student_llm, seed.main_topics, Student.TYPES[type_idx])
 
         chat_history = ChatHistory([])
         chat_history.root.append(Message(role="Student", content=seed.question, end=False))
@@ -134,7 +133,7 @@ def gen_teacher_student_interactions(
                 break
 
         interactions.root.append(
-            Interaction(seed=seed, student_type=student.TYPES[student_type], chat_history=chat_history)
+            Interaction(seed=seed, student_type=student.TYPES[type_idx], chat_history=chat_history)
         )
 
     return interactions
