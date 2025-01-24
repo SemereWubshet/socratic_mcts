@@ -126,7 +126,7 @@ if __name__ == "__main__":
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
         default=OllamaAgent(
-            "mistral-nemo:12b-instruct-2407-fp16",
+            "mistral-nemo:12b",
             ollama.Client("http://atlas1api.eurecom.fr"),
             temperature=0.,
             num_ctx=32_000
@@ -139,7 +139,7 @@ if __name__ == "__main__":
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
         default=OllamaAgent(
-            "mistral-nemo:12b-instruct-2407-fp16",
+            "mistral-nemo:12b",
             ollama.Client("http://atlas1api.eurecom.fr"),
             temperature=0.,
             num_ctx=32_000
@@ -189,7 +189,7 @@ if __name__ == "__main__":
         seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
 
     nemo = OllamaAgent(
-        "mistral-nemo:12b-instruct-2407-fp16", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
+        "mistral-nemo:12b", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
     )
     nemo.healthcheck()
 
@@ -200,7 +200,7 @@ if __name__ == "__main__":
     gpt4o.healthcheck()
 
     nemo_mcts = OllamaAgent(
-        "mistral-nemo:12b-instruct-2407-fp16", ollama.Client(args.ollama_client), temperature=1.7, num_ctx=32_000
+        "mistral-nemo:12b", ollama.Client(args.ollama_client), temperature=1.7, num_ctx=32_000
     )
     nemo_mcts.healthcheck()
 
@@ -209,12 +209,18 @@ if __name__ == "__main__":
     )
     llama3.healthcheck()
 
+    deepseek = OllamaAgent(
+        "deepseek-1:8b", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
+    )
+    deepseek.healthcheck()
+
     judge = Judge(args.judge_llm)
 
     value_fn = ValueFn(base_model=str(args.value_fn), gpu="cpu")
 
     for filename, teacher in ([
         ("mistral-nemo.json", Teacher(nemo)),
+        ("deepseek-1.json", Teacher(deepseek)),
         ("socratic-llm.json", Socratic(socratic_llm)),
         ("gpt-4o.json", Teacher(gpt4o)),
         ("llama3.3.json", Teacher(llama3)),

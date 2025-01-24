@@ -4,6 +4,7 @@ import pathlib
 from json import JSONDecodeError
 from typing import Dict, List, Tuple, Union, Any
 
+import re
 import httpx
 import ollama
 import openai
@@ -215,7 +216,7 @@ class Judge:
                                       {"role": "user", "content": f"# Main Topics\n{main_topics}\n\n"
                                                                   f"# Chat history\n{chat_history}\n\n"
                                                                   f"EVALUATION: "}])
-        # cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
+        cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
 
         # print("I'm assessment\n")
         # print(assessment)
@@ -225,5 +226,5 @@ class Judge:
         # print(cleaned_assessment)
         #
         # print("\nDone with assessment")
-        parsed = json.loads(assessment)
+        parsed = json.loads(cleaned_assessment)
         return parsed["feedback"], parsed["assessment"]

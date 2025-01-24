@@ -59,8 +59,8 @@ if __name__ == "__main__":
         mkdir(output_path)
 
     # Prepare LLM list
-    ollama_list = ["llama3.3:70b", "mistral-nemo:12b-instruct-2407-fp16", "phi4"]
-    openai_list = ["gpt-4o"]
+    ollama_list = ["phi4"] # ["llama3.3:70b", "mistral-nemo:12b-instruct-2407-fp16", "phi4"]
+    openai_list = [] #["gpt-4o"]
 
     # Setup output directory
     output_dir = args.output_dir
