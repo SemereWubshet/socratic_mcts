@@ -10,6 +10,7 @@ from openai import OpenAI
 from pydantic import BaseModel
 
 from agents import OllamaAgent, Teacher, OpenAIAgent, LLM, Student, Judge
+from base_models import ChatHistory
 from mcts import StudentNode, ValueFn, select, backup, TeacherNode
 from rollout import SeedDataset, gen_seeds, gen_teacher_student_interactions, Evaluation, evaluate
 from tools import LLMAction
@@ -66,14 +67,15 @@ class MCTS(Teacher):
         self._max_depth = max_depth
         self._judge = judge
 
-    def chat(self, chat_history: str) -> str:
+    def chat(self, chat_history: ChatHistory) -> str:
+        as_str = str(chat_history)
         # get main_topics
         main_topics = self._llm.query(
             [{"role": "system", "content": "Given a conversation between a teacher and a "
                                            "student, output a short description of the main topics (up to "
                                            "three) the teacher must cover so to improve the understanding "
                                            "of the student on the topic."},
-             {"role": "user", "content": chat_history}])
+             {"role": "user", "content": as_str}])
 
         # get likely student type
         student_type_list = '\n - '.join(Student.TYPES)
@@ -86,10 +88,10 @@ class MCTS(Teacher):
                                            f"{student_type_list}"
                                            "\n\nOutput, only the selected choice with the exact text, but no opening "
                                            "or closing explanations."},
-             {"role": "user", "content": chat_history}])
+             {"role": "user", "content": as_str}])
         student = Student(self._llm, main_topics, student_type)
 
-        root = StudentNode(chat_history)
+        root = StudentNode(as_str)
         root.v = self._value_fn(str(root.history()))
         flat_teacher = Teacher(self._llm)
         root.expand(flat_teacher)
@@ -209,10 +211,10 @@ if __name__ == "__main__":
     )
     llama3.healthcheck()
 
-    deepseek = OllamaAgent(
-        "deepseek-1:8b", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
-    )
-    deepseek.healthcheck()
+    # deepseek = OllamaAgent(
+    #     "deepseek-1:8b", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
+    # )
+    # deepseek.healthcheck()
 
     judge = Judge(args.judge_llm)
 
@@ -220,7 +222,7 @@ if __name__ == "__main__":
 
     for filename, teacher in ([
         ("mistral-nemo.json", Teacher(nemo)),
-        ("deepseek-1.json", Teacher(deepseek)),
+        # ("deepseek-1.json", Teacher(deepseek)),
         ("socratic-llm.json", Socratic(socratic_llm)),
         ("gpt-4o.json", Teacher(gpt4o)),
         ("llama3.3.json", Teacher(llama3)),

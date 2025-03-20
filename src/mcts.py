@@ -61,24 +61,28 @@ class ValueFn:
     def __init__(self, base_model: str, max_length: int = 1024, gpu: str = "cuda:0"):
         self._max_length = max_length
         self._base_model = base_model
-        self._gpu = gpu
+        self._device = torch.device(gpu)
         self._tokenizer = AutoTokenizer.from_pretrained(base_model)
         self.model = AutoModelForSequenceClassification.from_pretrained(
             base_model, num_labels=1, attention_window=max_length
-        ).to(self._gpu)
+        ).to(self._device)
 
     def __call__(self, history: str) -> float:
-        _history = self._tokenizer(
+        tokenized = self._tokenizer(
             history, return_tensors="pt", truncation=True, max_length=self._max_length
-        ).to(self._gpu)
+        )
+        inputs = {
+            "input_ids": tokenized.input_ids.to(self._device),
+            "attention_mask": tokenized.attention_mask.to(self._device)
+        }
         with torch.no_grad():
-            value = float(self.model(**_history).logits)
+            value = float(self.model(**inputs).logits)
         return value
 
     def batch_tokenize(self, dataset: Dict[str, List[str]]) -> Dict[str, List[str]]:
         return self._tokenizer(
             dataset["history"], return_tensors="pt", padding="max_length", truncation=True, max_length=self._max_length
-        ).to(self._gpu)
+        ).to(self._device)
 
     def save(self, path: pathlib.Path) -> None:
         self.model.save_pretrained(path)
@@ -100,7 +104,7 @@ class StudentNode:
     def expand(self, teacher: Teacher) -> "TeacherNode":
         assert not self.end
         history = self.history()
-        reply = teacher.chat(str(history))
+        reply = teacher.chat(history)
         teacher_node = TeacherNode(reply, self)
         self.children.append(teacher_node)
         return teacher_node
@@ -153,7 +157,7 @@ class TeacherNode:
     def expand(self, student: Student) -> "StudentNode":
         assert self.child is None
         history = self.history()
-        question, end = student.chat(str(history))
+        question, end = student.chat(history)
         student_node = StudentNode(question, self, end)
         self.child = student_node
         return student_node
@@ -171,6 +175,29 @@ def select(root: StudentNode) -> TeacherNode:
     ni = np.array([c.n for c in root.children])
     N = np.sum(ni)
     terminal_states = np.array([c.child is not None and c.child.terminal for c in root.children])
+
+    #   File "/homes/gatti/sources/socratic_mcts/src/evaluate.py", line 239, in <module>
+    #     interactions_dataset = gen_teacher_student_interactions(
+    #                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    #   File "/homes/gatti/sources/socratic_mcts/src/rollout.py", line 116, in gen_teacher_student_interactions
+    #     reply = teacher.chat(chat_history)
+    #             ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    #   File "/homes/gatti/sources/socratic_mcts/src/evaluate.py", line 102, in chat
+    #     selected = select(root)
+    #                ^^^^^^^^^^^^
+    #   File "/homes/gatti/sources/socratic_mcts/src/mcts.py", line 190, in select
+    #     return select(student_node)
+    #            ^^^^^^^^^^^^^^^^^^^^
+    #   File "/homes/gatti/sources/socratic_mcts/src/mcts.py", line 190, in select
+    #     return select(student_node)
+    #            ^^^^^^^^^^^^^^^^^^^^
+    #   File "/homes/gatti/sources/socratic_mcts/src/mcts.py", line 190, in select
+    #     return select(student_node)
+    #            ^^^^^^^^^^^^^^^^^^^^
+    #   File "/homes/gatti/sources/socratic_mcts/src/mcts.py", line 180, in select
+    #     q[terminal_states] = -np.inf
+    #     ~^^^^^^^^^^^^^^^^^
+    # IndexError: arrays used as indices must be of integer (or boolean) type
 
     q = np.array([c.q for c in root.children])
     q[terminal_states] = -np.inf

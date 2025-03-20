@@ -4,12 +4,14 @@ import random
 import shutil
 from typing import Optional
 
+import numpy as np
 import ollama
 from datasets import DatasetDict, load_dataset
 from pydantic import BaseModel, RootModel
 from tqdm import tqdm
 
 from agents import StudentSeed, LLM, Student, Teacher, Judge, OllamaAgent
+from base_models import ChatHistory, Message
 from tools import LLMAction
 
 
@@ -31,22 +33,6 @@ class SeedDataset(RootModel):
 
     def __str__(self) -> str:
         return "\n\n-------\n\n".join(str(s) for s in self.root)
-
-
-class Message(BaseModel):
-    role: str
-    content: str
-    end: bool
-
-    def __str__(self) -> str:
-        return f"{self.role}: {self.content}"
-
-
-class ChatHistory(RootModel):
-    root: list[Message]
-
-    def __str__(self) -> str:
-        return "\n".join(str(m) for m in self.root)
 
 
 class Interaction(BaseModel):
@@ -80,6 +66,9 @@ class EvaluationDataset(RootModel):
 
     def __str__(self) -> str:
         return "\n\n-------\n\n".join(str(e) for e in self.root)
+
+    def avg_performance(self) -> float:
+        return np.mean([e.assessment for e in self.root])
 
 
 def gen_seeds(
@@ -115,7 +104,6 @@ def gen_teacher_student_interactions(
         teacher: Teacher,
         max_interactions: int = 3
 ) -> InteractionDataset:
-
     interactions = InteractionDataset([])
     for seed in tqdm(seeds.root):
         type_idx = random.randint(0, len(Student.TYPES) - 1)
@@ -125,9 +113,9 @@ def gen_teacher_student_interactions(
         chat_history.root.append(Message(role="Student", content=seed.question, end=False))
 
         for _ in range(max_interactions):
-            reply = teacher.chat(str(chat_history))
+            reply = teacher.chat(chat_history)
             chat_history.root.append(Message(role="Teacher", content=reply, end=False))
-            reply, end = student.chat(str(chat_history))
+            reply, end = student.chat(chat_history)
             chat_history.root.append(Message(role="Student", content=reply, end=end))
             if end:
                 break
@@ -166,7 +154,7 @@ if __name__ == "__main__":
              " This argument expects 3 parameters. The service to use: openai or ollama. The access "
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr:8019"))
+        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr"))
     )
     parser.add_argument(
         "--student-llm", nargs=3, action=LLMAction,
@@ -174,7 +162,7 @@ if __name__ == "__main__":
              " This argument expects 3 parameters. The service to use: openai or ollama. The access "
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr:8019"))
+        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr"))
     )
     parser.add_argument(
         "--teacher-llm", nargs=3, action=LLMAction,
@@ -182,7 +170,7 @@ if __name__ == "__main__":
              " This argument expects 3 parameters. The service to use: openai or ollama. The access "
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr:8019"))
+        default=OllamaAgent("mistral-nemo:12b-instruct-2407-fp16", ollama.Client("http://atlas1api.eurecom.fr"))
     )
     parser.add_argument(
         "--judge-llm", nargs=3, action=LLMAction,
@@ -190,7 +178,7 @@ if __name__ == "__main__":
              " This argument expects 3 parameters. The service to use: openai or ollama. The access "
              "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
              "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent("llama3.3:70b", ollama.Client("http://atlas1api.eurecom.fr:8019"))
+        default=OllamaAgent("llama3.3:70b", ollama.Client("http://atlas1api.eurecom.fr"))
     )
 
     parser.add_argument("--use-cache", action="store_true", help="Don't run subprocess if output files exist")
@@ -230,7 +218,7 @@ if __name__ == "__main__":
         print()
         print("Creating interactions dataset", flush=True)
         interactions_dataset = gen_teacher_student_interactions(
-            seed_dataset, args.student_llm, args.teacher_llm, max_interactions=args.max_interactions
+            seed_dataset, args.student_llm, Teacher(args.teacher_llm), max_interactions=args.max_interactions
         )
         interactions_path.write_text(interactions_dataset.model_dump_json(indent=4))
         evaluations_path.unlink(missing_ok=True)

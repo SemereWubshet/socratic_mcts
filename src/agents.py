@@ -1,15 +1,17 @@
 import abc
 import json
 import pathlib
+import re
 from json import JSONDecodeError
 from typing import Dict, List, Tuple, Union, Any
 
-import re
 import httpx
 import ollama
 import openai
 from ollama import ResponseError
 from openai import NotGiven, NOT_GIVEN
+
+from base_models import ChatHistory
 
 
 class LLM(abc.ABC):
@@ -76,7 +78,7 @@ class OllamaAgent(LLM):
 
         available_models = [m["name"] for m in models["models"]]
 
-        if self._model not in available_models:
+        if not any(self._model in m for m in available_models):
             try:
                 print(f" === Pulling {self._model} from OllamaHub === ")
                 self._client.pull(self._model)
@@ -150,7 +152,7 @@ class Teacher:
     def __init__(self, llm: LLM):
         self._llm = llm
 
-    def chat(self, chat_history: str) -> str:
+    def chat(self, chat_history: ChatHistory) -> str:
         return self._llm.query([{"role": "system", "content": Teacher.BASE_PROMPT},
                                 {"role": "user", "content": f"# Chat history\n{chat_history}\n\nOUTPUT: "}])
 
@@ -183,11 +185,11 @@ class Student:
         self._main_topics = main_topics
         self._student_prompt = Student.BASE_PROMPT.format(STUDENT_TYPE=student_type)
 
-    def chat(self, chat_history: str) -> Tuple[str, bool]:
+    def chat(self, chat_history: ChatHistory) -> Tuple[str, bool]:
         trials = 0
         answer = ""
         source_content = ""
-        while trials < 4:
+        while trials < 10:
             source_content = f"# Main topics\n{self._main_topics}\n\n# Chat History\n{chat_history}\n\nOUTPUT: "
             answer = self._llm.query([
                 {"role": "system", "content": self._student_prompt},
@@ -197,7 +199,7 @@ class Student:
             try:
                 parsed = json.loads(answer.strip())
                 return parsed["answer"], parsed["end"]
-            except JSONDecodeError:
+            except (JSONDecodeError, KeyError):
                 trials += 1
 
         raise RuntimeError(
