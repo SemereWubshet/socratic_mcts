@@ -44,7 +44,7 @@ def expand(node: TeacherNode,
 
 class ResultDataset(BaseModel):
     model_name: str
-    mcts_budget: Optional[int] = None
+    # mcts_budget: Optional[int] = None
     evaluations: list[Evaluation]
 
     def avg_performance(self) -> float:
