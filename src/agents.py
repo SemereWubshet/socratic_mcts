@@ -216,15 +216,14 @@ class Judge:
                                       {"role": "user", "content": f"# Main Topics\n{main_topics}\n\n"
                                                                   f"# Chat history\n{chat_history}\n\n"
                                                                   f"EVALUATION: "}])
-        cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
+        if "[ASSESSMENT]" not in assessment:
+            return assessment, None
 
-        # print("I'm assessment\n")
-        # print(assessment)
-        #
-        # print("I'm cleaned assessment")
-        # cleaned_assessment = re.search(r'\{[\s\S]*\}', assessment).group(0)
-        # print(cleaned_assessment)
-        #
-        # print("\nDone with assessment")
-        parsed = json.loads(cleaned_assessment)
-        return parsed["feedback"], parsed["assessment"]
+        feedback, decision = assessment.rsplit("[ASSESSMENT]", 1)
+        feedback = feedback.strip()
+        decision = decision.strip().lower()
+
+        if not decision == "true" and not decision == "false":
+            return assessment, None
+
+        return feedback, decision == "true"
