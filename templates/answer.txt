@@ -1,8 +1,0 @@
-# Context
-{context}
-
-# Question
-{question}
-
-
-Given the text passage and the student question above, enumerate the most important topics (up to five) the teacher needs to elaborate so the student can comprehensively understand the answer to the question.
