@@ -4,12 +4,15 @@ You are a student trying to gain more understanding on a class topic. In particu
 
 The question must be short, concise and hint about the main topics, but without disclosing what are the main topic to the teacher. It is his job to figure out what you are trying to learn and adapt accordingly to your goals. {interaction_type}
 
+The question must be understandable on its own because the teacher does not have access to the textbook passage you read.
+
 # Output Format
 
-Your evaluation must be a JSON with the following format. Do not output opening or closing statements, only the JSON.
+Your evaluation must be a raw JSON with the following format:
 
 {{"main_topics": "(a description on what are the main topics you are seeking to learn - up to five points)", "question": "(the opening question)"}}
 
+Do not output opening or closing statements or any special formatting ‒ only the raw JSON.
 
 # Example
 

@@ -1,171 +1,284 @@
 import argparse
 import pathlib
+import random
 import shutil
-from typing import Optional, Tuple
+from typing import Optional, List, Tuple, Dict, Union
 
-import numpy as np
-import ollama
-from datasets import load_dataset
+from datasets import DatasetDict, load_dataset
+from ollama import Client
 from openai import OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, RootModel
+from tqdm import tqdm
 
-from agents import OllamaAgent, Teacher, OpenAIAgent, LLM, Student, Judge
-from mcts import StudentNode, ValueFn, select, backup, TeacherNode
-from rollout import SeedDataset, gen_seeds, gen_teacher_student_interactions, Evaluation, evaluate
-from tools import LLMAction
+from agents import StudentSeed, LLM, Student, Teacher, Judge, OpenAIAgent, OllamaAgent, Socratic
 
 
-def expand(node: TeacherNode,
-           student: Student,
-           teacher: Teacher,
-           value_fn: ValueFn,
-           judge: Judge,
-           main_topics: str,
-           max_depth: int = 15) -> Tuple[bool, StudentNode]:
-    # Adapted from mcts.py
-    student_node = node.expand(student)
+class Seed(BaseModel):
+    source_content: str
+    question: str
+    main_topics: str
+    interaction_type: str
 
-    if student_node.end or student_node.depth() >= max_depth:
-        chat_history = str(student_node.history())
-        _, assessment = judge.evaluate(main_topics, chat_history)
-        student_node.v = 1. if assessment else -1.
-        student_node.terminal = True
-        return True, student_node
-
-    student_node.v = value_fn(str(student_node.history()))
-
-    student_node.terminal = False
-    student_node.expand(teacher)
-    student_node.expand(teacher)
-    student_node.expand(teacher)
-
-    return False, student_node
+    def __str__(self) -> str:
+        return (f"# Source content\n{self.source_content}\n\n"
+                f"# Main Topics\n{self.main_topics}\n\n"
+                f"# Interaction type\n{self.interaction_type}\n\n"
+                f"# Question\n{self.question}")
 
 
-class ResultDataset(BaseModel):
-    model_name: str
-    # mcts_budget: Optional[int] = None
-    evaluations: list[Evaluation]
+class SeedDataset(RootModel):
+    root: list[Seed]
 
-    def avg_performance(self) -> float:
-        return np.mean([e.assessment for e in self.evaluations])
+    def __str__(self) -> str:
+        return "\n\n-------\n\n".join(str(s) for s in self.root)
 
 
-class Socratic(Teacher):
+class Message(BaseModel):
+    role: str
+    content: str
+    end: bool
 
-    def chat(self, chat_history: str) -> str:
-        return self._llm.query([{"role": "user", "content": f"{chat_history}"}])
+    def __str__(self) -> str:
+        return f"{self.role}: {self.content}"
 
 
-class MCTS(Teacher):
+class ChatHistory(RootModel):
+    root: list[Message]
 
-    def __init__(self, llm: LLM, judge: Judge, value_fn: ValueFn, budget: int, max_depth: int = 15):
-        super().__init__(llm)
-        self._value_fn = value_fn
-        self._budget = budget
-        self._max_depth = max_depth
-        self._judge = judge
+    def __str__(self) -> str:
+        return "\n".join(str(m) for m in self.root)
 
-    def chat(self, chat_history: str) -> str:
-        # get main_topics
-        main_topics = self._llm.query(
-            [{"role": "system", "content": "Given a conversation between a teacher and a "
-                                           "student, output a short description of the main topics (up to "
-                                           "three) the teacher must cover so to improve the understanding "
-                                           "of the student on the topic."},
-             {"role": "user", "content": chat_history}])
 
-        # get likely student type
-        student_type_list = '\n - '.join(Student.TYPES)
-        student_type = self._llm.query(
-            [{"role": "system", "content": "Given a conversation between a teacher and a "
-                                           "student, output a short description the most likely type of student "
-                                           "the teacher is interacting with. Select one of the items from the "
-                                           "following list: "
-                                           "\n"
-                                           f"{student_type_list}"
-                                           "\n\nOutput, only the selected choice with the exact text, but no opening "
-                                           "or closing explanations."},
-             {"role": "user", "content": chat_history}])
-        student = Student(self._llm, main_topics, student_type)
+class Interaction(BaseModel):
+    seed: Seed
+    student_type: str
+    chat_history: ChatHistory
 
-        root = StudentNode(chat_history)
-        root.v = self._value_fn(str(root.history()))
-        flat_teacher = Teacher(self._llm)
-        root.expand(flat_teacher)
-        root.expand(flat_teacher)
-        root.expand(flat_teacher)
+    def __str__(self) -> str:
+        return f"{self.seed}\n\n# Student type\n{self.student_type}\n\n# Chat History\n{self.chat_history}"
 
-        for _ in range(self._budget):
-            selected = select(root)
-            _, leaf = expand(selected, student, flat_teacher, self._value_fn, self._judge, main_topics, self._max_depth)
-            backup(leaf)
 
-        q = np.array([c.q for c in root.children])
-        idx = int(np.argmax(q))
-        selected = root.children[idx]
+class InteractionMetadata(BaseModel):
+    student_llm: str
+    teacher_llm: str
+    max_interactions: int
 
-        return selected.reply
+
+class InteractionDataset(BaseModel):
+    metadata: InteractionMetadata
+    interactions: List[Interaction]
+
+    def __str__(self) -> str:
+        return "\n\n-------\n\n".join(str(i) for i in self.interactions)
+
+
+class Evaluation(BaseModel):
+    id: int
+    interaction: Interaction
+    feedback: Optional[str]
+    assessment: Optional[bool]
+
+    def __str__(self) -> str:
+        return f"{self.interaction}\n\n# Feedback\n{self.feedback}\n\n# Assessment\n{self.assessment}"
+
+
+class EvalMetadata(BaseModel):
+    student_llm: str
+    judge_llm: str
+    teacher_llm: str
+    max_interactions: int
+
+
+class EvaluationDataset(BaseModel):
+    metadata: EvalMetadata
+    evaluations: List[Evaluation]
+
+    def __str__(self) -> str:
+        return "\n\n-------\n\n".join(str(e) for e in self.evaluations)
+
+
+def resolve_llm(model: Tuple[str, str], clients: Dict[str, Union[Client, OpenAI]]) -> LLM:
+    backend, model = model
+
+    client = clients.get(backend)
+
+    if not client:
+        raise ValueError(f"No client configured for backend '{backend}'")
+
+    llm: LLM
+    if backend == "openai":
+        llm = OpenAIAgent(model, client, temperature=0.15)
+    elif backend == "ollama":
+        llm = OllamaAgent(model, client, temperature=0.15, num_ctx=8192)
+    else:
+        raise ValueError(f"Backend {backend} is not supported")
+
+    llm.healthcheck()
+
+    return llm
+
+
+def gen_seeds(
+        wikipedia_pages: DatasetDict,
+        llm: LLM,
+        num_of_conversations: int,
+        max_page_size: int = 3000
+) -> SeedDataset:
+    contents = wikipedia_pages['train']
+    contents = contents.shuffle()
+
+    pbar = tqdm(total=num_of_conversations, desc="Conversation seeds")
+    seeds = []
+    i = 0
+    while len(seeds) < num_of_conversations and i < len(contents):
+        page = contents[i]
+        page_text: str = page["chapter"][:max_page_size]
+        i += 1
+
+        seed_type = random.randint(0, len(StudentSeed.INTERACTION_TYPES)) - 1
+        seeder = StudentSeed(llm, seed_type)
+        question, main_topics = seeder.gen_seed(page_text)
+        seeds.append(
+            Seed(source_content=page_text,
+                 question=question,
+                 main_topics=main_topics,
+                 interaction_type=StudentSeed.INTERACTION_TYPES[seed_type]["interaction_type"])
+        )
+        pbar.update()
+
+    return SeedDataset(seeds)
+
+
+def gen_teacher_student_interactions(
+        seeds: SeedDataset,
+        student_llm: LLM,
+        teacher: Teacher,
+        max_interactions: int = 3
+) -> InteractionDataset:
+    interactions: List[Interaction] = []
+    students: List[Student] = []
+    ended: List[bool] = []
+
+    total_possible_queries = 2 * len(seeds.root) * max_interactions
+    pbar = tqdm(total=total_possible_queries, desc="Simulating dialogs", unit="query")
+
+    # Prepare initial state
+    for seed in seeds.root:
+        stype = random.choice(Student.TYPES)
+        student = Student(student_llm, seed.main_topics, stype)
+
+        history = ChatHistory(root=[Message(role="Student", content=seed.question, end=False)])
+        interactions.append(Interaction(seed=seed, student_type=stype, chat_history=history))
+        students.append(student)
+        ended.append(False)
+
+    # Interleave teacher/student in rounds
+    for turn in range(max_interactions):
+        # -- TEACHER step --
+        teacher_prompts = []
+        idx_map = []
+        for idx, inter in enumerate(interactions):
+            if not ended[idx]:
+                teacher_prompts.append(str(inter.chat_history))
+                idx_map.append(idx)
+
+        if not teacher_prompts:
+            break  # All done
+
+        teacher_replies = [teacher.chat(p) for p in teacher_prompts]
+        pbar.update(len(teacher_replies))
+
+        for batch_i, reply in enumerate(teacher_replies):
+            idx = idx_map[batch_i]
+            interactions[idx].chat_history.root.append(
+                Message(role="Teacher", content=reply, end=False)
+            )
+
+        # -- STUDENT step --
+        student_prompts = []
+        idx_map = []
+        for idx, inter in enumerate(interactions):
+            if not ended[idx]:
+                student_prompts.append(str(inter.chat_history))
+                idx_map.append(idx)
+
+        student_outputs = [students[idx].chat(p) for idx, p in zip(idx_map, student_prompts)]
+        pbar.update(len(student_outputs))
+
+        for (reply, did_end), idx in zip(student_outputs, idx_map):
+            interactions[idx].chat_history.root.append(
+                Message(role="Student", content=reply, end=did_end)
+            )
+
+            if did_end:
+                ended[idx] = True
+                # Pre-advance the bar for skipped steps: 2 (T+S) per remaining turn
+                remaining_turns = max_interactions - (turn + 1)
+                skipped_steps = 2 * remaining_turns
+                pbar.update(skipped_steps)
+
+        if all(ended):
+            break
+
+    pbar.close()
+    return InteractionDataset(
+        metadata=InteractionMetadata(
+            student_llm=student_llm.model_name,
+            teacher_llm=teacher.model_name(),
+            max_interactions=max_interactions
+        ),
+        interactions=interactions
+    )
+
+
+def evaluate(interactions: InteractionDataset, judge_llm: LLM) -> EvaluationDataset:
+    judge = Judge(judge_llm)
+
+    evaluations = []
+    for _id, interaction in enumerate(tqdm(interactions.interactions, desc="Evaluating interactions")):
+        feedback, assessment = judge.evaluate(interaction.seed.main_topics, str(interaction.chat_history))
+        evaluations.append(Evaluation(id=_id, interaction=interaction, feedback=feedback, assessment=assessment))
+
+    return EvaluationDataset(
+        metadata=EvalMetadata(
+            student_llm=interactions.metadata.student_llm,
+            teacher_llm=interactions.metadata.teacher_llm,
+            judge_llm=judge_llm.model_name,
+            max_interactions=max_interactions
+        ),
+        evaluations=evaluations
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        prog="EVALUATE", description="Tool for evaluating and comparing multiple Teacher LLMs."
+        prog="ROLLOUT", description="Rollouts conversations between student and teacher and assess them."
     )
 
-    parser.add_argument("--root-dir", required=True, type=pathlib.Path, help="Path to root training directory")
-    parser.add_argument("--value-fn", required=True, type=pathlib.Path, help="Path to fine-tuned value function")
+    parser.add_argument("--output-dir", required=True, type=str, help="Path where to store pipeline outputs")
     parser.add_argument("--num-conversations", required=True, type=int, help="Number of conversations to generate")
-    parser.add_argument("--max-interactions", default=15, type=int,
-                        help="Maximum number of conversations rounds between the teacher and the student")
+    parser.add_argument("--ollama-client", required=True, type=str, help="The address for ollama server.")
 
     parser.add_argument(
-        "--seed-llm", nargs=3, action=LLMAction,
-        help="Service to create the seed topics. It can be either a self-hosted model (Ollama) or OpenAI."
-             " This argument expects 3 parameters. The service to use: openai or ollama. The access "
-             "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
-             "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent(
-            "mistral-nemo:12b",
-            ollama.Client("http://atlas1api.eurecom.fr"),
-            temperature=0.,
-            num_ctx=32_000
-        )
+        "--seed-llm", nargs=2, metavar=("BACKEND", "MODEL"), default=["ollama", "mistral-small3.1:24b"]
     )
     parser.add_argument(
-        "--student-llm", nargs=3, action=LLMAction,
-        help="Service to emulate the student. It can be either a self-hosted model (Ollama) or OpenAI."
-             " This argument expects 3 parameters. The service to use: openai or ollama. The access "
-             "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
-             "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent(
-            "mistral-nemo:12b",
-            ollama.Client("http://atlas1api.eurecom.fr"),
-            temperature=0.,
-            num_ctx=32_000
-        )
+        "--student-llm", nargs=2, metavar=("BACKEND", "MODEL"), default=["ollama", "mistral-small3.1:24b"]
     )
     parser.add_argument(
-        "--ollama-client", type=str, help="Ollama client to be used by Open Source teacher models.",
-        default="http://atlas1api.eurecom.fr"
-    )
-    parser.add_argument(
-        "--judge-llm", nargs=3, action=LLMAction,
-        help="Service to use of the judge LLM. It can be either a self-hosted model (Ollama) or OpenAI."
-             " This argument expects 3 parameters. The service to use: openai or ollama. The access "
-             "information: if openai, thus the OpenAi API key or if using ollama, the server's http "
-             "address. The last parameter is the model to use (e.g., gpt-4o or llama3:70b-instruct).",
-        default=OllamaAgent(
-            "llama3.3:70b",
-            ollama.Client("http://atlas1api.eurecom.fr"), temperature=0., num_ctx=32_000
-        )
+        "--judge-llm", nargs=2, metavar=("BACKEND", "MODEL"), default=["ollama", "qwen3:32b"]
     )
 
     parser.add_argument("--use-cache", action="store_true", help="Don't run subprocess if output files exist")
     args = parser.parse_args()
 
-    output_dir: pathlib.Path = args.root_dir / "evaluation"
+    clients = {"openai": OpenAI(), "ollama": Client(args.ollama_client)}
 
+    seed_llm = resolve_llm(args.seed_llm, clients)
+    student_llm = resolve_llm(args.student_llm, clients)
+    judge_llm = resolve_llm(args.judge_llm, clients)
+
+    output_dir = pathlib.Path(args.output_dir)
     output_dir.mkdir(exist_ok=True)
     if not args.use_cache:
         for child in output_dir.iterdir():
@@ -175,73 +288,45 @@ if __name__ == "__main__":
                 shutil.rmtree(child)
 
     seeds_path = output_dir / "seeds.json"
-    results_path = output_dir / "results"
 
-    results_path.mkdir(exist_ok=True)
+    wikipedia = load_dataset("princeton-nlp/TextbookChapters")
 
     if seeds_path.exists():
         print("Loading seed dataset", flush=True)
         seed_dataset = SeedDataset.model_validate_json(seeds_path.read_text())
     else:
-        print("Creating seed dataset", flush=True)
-        wikipedia = load_dataset("wikimedia/wikipedia", "20231101.simple")
-        seed_dataset = gen_seeds(wikipedia, args.seed_llm, num_of_conversations=args.num_conversations)
+        seed_dataset = gen_seeds(wikipedia, seed_llm, num_of_conversations=args.num_conversations)
         seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
+        # Remove stale downstream outputs if seeds changed
+        for f in output_dir.glob("int_*.json"):
+            f.unlink()
+        for f in output_dir.glob("eval_*.json"):
+            f.unlink()
 
-    nemo = OllamaAgent(
-        "mistral-nemo:12b", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
-    )
-    nemo.healthcheck()
+    for teacher in tqdm([
+        Teacher(resolve_llm(("ollama", "mistral-small3.1:24b"), clients)),
+        # Teacher(resolve_llm(("ollama", "llama3.3:70b"), clients)),
+        # Teacher(resolve_llm(("openai", "gpt-4o"), clients)),
+        Socratic(resolve_llm(("ollama", "eurecom-ds/phi-3-mini-4k-socratic"), clients)),
+    ], desc="Teacher evaluation"):
+        for max_interactions in tqdm([2, 4, 8, 16], desc="Max interactions"):
+            teacher_model = teacher.model_name()
+            teacher_model = teacher_model.split("/")[-1].replace(":", "_")
+            interactions_path = output_dir / f"int_{max_interactions}_{teacher_model}.json"
+            evaluations_path = output_dir / f"eval_{max_interactions}_{teacher_model}.json"
 
-    socratic_llm = OllamaAgent("eurecom-ds/phi-3-mini-4k-socratic", ollama.Client(args.ollama_client), temperature=0.)
-    socratic_llm.healthcheck()
+            if interactions_path.exists():
+                interactions_dataset = InteractionDataset.model_validate_json(interactions_path.read_text())
+            else:
+                interactions_dataset = gen_teacher_student_interactions(
+                    seed_dataset, student_llm, teacher, max_interactions=max_interactions
+                )
+                interactions_path.write_text(interactions_dataset.model_dump_json(indent=4))
+                evaluations_path.unlink(missing_ok=True)
 
-    gpt4o = OpenAIAgent("gpt-4o", OpenAI(), temperature=0.)
-    gpt4o.healthcheck()
+            if not evaluations_path.exists():
+                evaluations_dataset = evaluate(interactions_dataset, judge_llm)
+                evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
 
-    nemo_mcts = OllamaAgent(
-        "mistral-nemo:12b", ollama.Client(args.ollama_client), temperature=1.7, num_ctx=32_000
-    )
-    nemo_mcts.healthcheck()
-
-    llama3 = OllamaAgent(
-        "llama3.3:70b", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
-    )
-    llama3.healthcheck()
-
-    deepseek = OllamaAgent(
-        "deepseek-1:8b", ollama.Client(args.ollama_client), temperature=0., num_ctx=32_000
-    )
-    deepseek.healthcheck()
-
-    judge = Judge(args.judge_llm)
-
-    value_fn = ValueFn(base_model=str(args.value_fn), gpu="cpu")
-
-    for filename, teacher in ([
-        ("mistral-nemo.json", Teacher(nemo)),
-        ("deepseek-1.json", Teacher(deepseek)),
-        ("socratic-llm.json", Socratic(socratic_llm)),
-        ("gpt-4o.json", Teacher(gpt4o)),
-        ("llama3.3.json", Teacher(llama3)),
-        (f"mcts-budget-0.json", MCTS(nemo_mcts, judge, value_fn, budget=0)),
-        (f"mcts-budget-2.json", MCTS(nemo_mcts, judge, value_fn, budget=2)),
-        (f"mcts-budget-4.json", MCTS(nemo_mcts, judge, value_fn, budget=4)),
-        (f"mcts-budget-8.json", MCTS(nemo_mcts, judge, value_fn, budget=8)),
-        (f"mcts-budget-16.json", MCTS(nemo_mcts, judge, value_fn, budget=16)),
-    ]):
-        print()
-        print(f"Evaluating for {filename}...")
-        result_path = results_path / filename
-        if not result_path.exists():
-            interactions_dataset = gen_teacher_student_interactions(
-                seed_dataset, args.student_llm, teacher, max_interactions=args.max_interactions
-            )
-            evaluations_dataset = evaluate(interactions_dataset, args.judge_llm)
-
-            result_dataset = ResultDataset(
-                model_name=teacher.model_name(), mcts_budget=None, evaluations=evaluations_dataset.root
-            )
-
-            result_path.write_text(result_dataset.model_dump_json(indent=4))
-            print(f"Final avg. performance {result_dataset.avg_performance()}")
+    print("Finished processing")
+    exit(0)

@@ -4,7 +4,6 @@ import pathlib
 from json import JSONDecodeError
 from typing import Dict, List, Tuple, Union, Any
 
-import re
 import httpx
 import ollama
 import openai
@@ -130,7 +129,7 @@ class StudentSeed:
     def gen_seed(self, source_content: str) -> Tuple[str, str]:
         trials = 0
         output = ""
-        while trials < 4:
+        while trials < 10:
             output = self._llm.query([{"role": "system", "content": self._seed_prompt},
                                       {"role": "user", "content": f"```\n{source_content}\n```\nOUTPUT: "}])
             try:
@@ -156,6 +155,12 @@ class Teacher:
 
     def model_name(self) -> str:
         return self._llm.model_name
+
+
+class Socratic(Teacher):
+
+    def chat(self, chat_history: str) -> str:
+        return self._llm.query([{"role": "user", "content": f"{chat_history}"}])
 
 
 class Student:
@@ -187,7 +192,7 @@ class Student:
         trials = 0
         answer = ""
         source_content = ""
-        while trials < 4:
+        while trials < 10:
             source_content = f"# Main topics\n{self._main_topics}\n\n# Chat History\n{chat_history}\n\nOUTPUT: "
             answer = self._llm.query([
                 {"role": "system", "content": self._student_prompt},
