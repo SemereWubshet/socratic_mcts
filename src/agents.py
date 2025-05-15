@@ -1,7 +1,6 @@
 import abc
 import json
 import pathlib
-import re
 from json import JSONDecodeError
 from typing import Dict, List, Tuple, Union, Any
 
@@ -12,14 +11,8 @@ from ollama import ResponseError
 from openai import NotGiven, NOT_GIVEN
 
 
-def escape_latex_backslashes(json_str):
-    def replacer(match):
-        content = match.group(1)
-        # Escape ALL backslashes in the content
-        content = content.replace('\\', '\\\\')
-        return f"\\\\({content}\\\\)"
-
-    return re.sub(r'\\\((.*?)\\\)', replacer, json_str)
+def escape_latex(raw_json_str):
+    return raw_json_str.replace('\\', '\\\\')
 
 
 class LLM(abc.ABC):
@@ -229,7 +222,7 @@ class Student(HasLLM):
                 {"role": "user",
                  "content": source_content}
             ])
-            escape = escape_latex_backslashes(answer.strip())
+            escape = escape_latex(answer.strip())
             try:
                 parsed = json.loads(escape)
                 return parsed["answer"], parsed["end"]
