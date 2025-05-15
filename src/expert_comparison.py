@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import cohen_kappa_score, confusion_matrix
 
-from evaluate import ResultDataset
+from schemas import JudgeDataset
 
 
 def bootstrap_ci(y_true, y_pred, n_bootstraps=1000):
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(args.expert[0], "r") as f:
-        expert_1 = ResultDataset.model_validate_json(f.read())
+        expert_1 = JudgeDataset.model_validate_json(f.read())
 
     df1 = pd.DataFrame(
         {
@@ -43,7 +43,7 @@ if __name__ == "__main__":
     df1 = df1.set_index("question_id")
 
     with open(args.expert[1], "r") as f:
-        expert_2 = ResultDataset.model_validate_json(f.read())
+        expert_2 = JudgeDataset.model_validate_json(f.read())
 
     df2 = pd.DataFrame(
         {

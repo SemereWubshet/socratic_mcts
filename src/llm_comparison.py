@@ -6,10 +6,10 @@ import pandas as pd
 from scipy.stats import gaussian_kde
 from sklearn.metrics import confusion_matrix, cohen_kappa_score
 
-from evaluate import ResultDataset
+from schemas import JudgeDataset
 
 
-def parse(dataset: ResultDataset) -> pd.DataFrame:
+def parse(dataset: JudgeDataset) -> pd.DataFrame:
     return pd.DataFrame(
         {
             "model_name": [dataset.model_name] * len(dataset.evaluations),
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     with open(args.reference_dataset, "r") as f:
-        results_dataset = ResultDataset.model_validate_json(f.read())
+        results_dataset = JudgeDataset.model_validate_json(f.read())
 
     human = parse(results_dataset)
     human = human.set_index("question_id")
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     df = pd.DataFrame()
     for evaluation in args.evaluation_dir.glob("*.json"):
         with open(evaluation, "r") as f:
-            eval_dataset = ResultDataset.model_validate_json(f.read())
+            eval_dataset = JudgeDataset.model_validate_json(f.read())
         df = pd.concat([df, parse(eval_dataset)], ignore_index=True)
 
     results = []

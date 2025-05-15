@@ -8,8 +8,7 @@ from openai import OpenAI
 from tqdm import tqdm
 
 from agents import OllamaAgent, OpenAIAgent, Judge
-from evaluate import ResultDataset
-from rollout import Evaluation
+from schemas import JudgeDataset, Evaluation
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -35,7 +34,7 @@ if __name__ == "__main__":
         mkdir(args.output_dir)
 
     with open(args.dataset_file, "r") as f:
-        result_dataset = ResultDataset.model_validate_json(f.read())
+        result_dataset = JudgeDataset.model_validate_json(f.read())
 
     openai_client = OpenAI()
     ollama_client = Client(args.ollama_address)
@@ -59,7 +58,7 @@ if __name__ == "__main__":
             evaluations.append(
                 Evaluation(id=e.id, interaction=e.interaction, feedback=feedback, assessment=assessment)
             )
-        judge_eval = ResultDataset(model_name=llm.model_name, evaluations=evaluations)
+        judge_eval = JudgeDataset(model_name=llm.model_name, evaluations=evaluations)
 
         with open(args.output_dir / (llm.model_name.replace(":", "_") + ".json"), "w") as f:
             f.write(judge_eval.model_dump_json(indent=4))
