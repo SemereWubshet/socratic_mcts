@@ -10,3 +10,6 @@ pydantic==2.10.0
 scikit-learn
 transformers[torch]==4.48.0
 torch
+statsmodels==0.14.4
+bokeh==3.7.3
+selenium==4.32.0

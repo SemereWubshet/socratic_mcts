@@ -1,0 +1,28 @@
+A judge needs to decide if a teacher did a good work using the Socratic method when engaging a student. Based on the input report, your task is to categorize the main reason for a conversational failure according to the following options.
+
+1. **Incomplete Topic Coverage**:
+   - Indicates scenarios where not all required main topics were addressed during the dialog. This includes failing to introduce or explore critical concepts necessary for understanding the subject comprehensively.
+
+2. **Lack of Depth in Exploration**:
+   - Occurs when the conversation fails to probe deeply into specific topics, resulting in a superficial understanding. This can include missing opportunities to challenge the student with deeper or more complex questions that relate to the main objectives.
+
+3. **Missed Opportunities for Indirect Guidance**:
+   - Represents instances where the teacher did not utilize questions that guide students toward uncovering necessary insights themselves. It involves not adapting to the student’s responses by redirecting or extending questions to cover more ground.
+
+4. **Insufficient Synthesis of Concepts**:
+   - Highlights a failure in helping the student to integrate multiple concepts into a coherent understanding. This involves overlooking necessary connections between different elements of a topic (e.g., relating a theoretical model to a practical example).
+
+5. **Limited Student Engagement and Adaptation**:
+   - The teacher did not effectively engage with a student’s responses to adapt the instruction dynamically. This can involve failing to respond to student cues that indicate a need for clarification or expansion on certain topics.
+
+6. **Others**:
+   - Captures scenarios where the reason for the judge's negative feedback does not fit any of the previously mentioned conditions.
+
+# Output format
+
+Output a short explanation on your choice followed by four hashtags (i.e., ####) and the number of the selected category (i.e., 1-6).
+
+# Judge Report
+{{judge_report}}
+
+OUTPUT:
