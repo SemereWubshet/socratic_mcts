@@ -37,6 +37,9 @@ class LLM(abc.ABC):
     def model_name(self) -> str:
         ...
 
+    def unload(self) -> None:
+        pass
+
 
 class OpenAIAgent(LLM):
 
@@ -97,8 +100,18 @@ class OllamaAgent(LLM):
     def model_name(self) -> str:
         return self._model
 
+    def unload(self) -> None:
+        self._client.generate(self._model, keep_alive=0)
 
-class StudentSeed:
+
+class HasLLM(abc.ABC):
+
+    @abc.abstractmethod
+    def llm(self) -> LLM:
+        pass
+
+
+class StudentSeed(HasLLM):
     BASE_PROMPT = pathlib.Path("./templates/seed.txt").read_text()
 
     INTERACTION_TYPES = (
@@ -153,8 +166,11 @@ class StudentSeed:
             f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {output}"
         )
 
+    def llm(self) -> LLM:
+        return self._llm
 
-class Teacher:
+
+class Teacher(HasLLM):
     BASE_PROMPT = pathlib.Path("./templates/teacher.txt").read_text()
 
     def __init__(self, llm: LLM):
@@ -167,6 +183,9 @@ class Teacher:
     def model_name(self) -> str:
         return self._llm.model_name
 
+    def llm(self) -> LLM:
+        return self._llm
+
 
 class Socratic(Teacher):
 
@@ -174,7 +193,7 @@ class Socratic(Teacher):
         return self._llm.query([{"role": "user", "content": f"{chat_history}"}])
 
 
-class Student:
+class Student(HasLLM):
     TYPES = (
         "You are a student who grasps and applies concepts effortlessly across domains. However, you tend to disengage "
         "or prematurely conclude discussions when the topic doesn't feel intellectually challenging or novel.",
@@ -221,8 +240,11 @@ class Student:
             f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {answer}"
         )
 
+    def llm(self) -> LLM:
+        return self._llm
 
-class Judge:
+
+class Judge(HasLLM):
     BASE_PROMPT = pathlib.Path("./templates/judge.txt").read_text()
 
     def __init__(self, llm: LLM):
@@ -244,3 +266,6 @@ class Judge:
             return assessment, None
 
         return feedback, decision == "true"
+
+    def llm(self) -> LLM:
+        return self._llm

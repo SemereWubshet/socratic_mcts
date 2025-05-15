@@ -104,6 +104,7 @@ def gen_teacher_student_interactions(
 
         teacher_replies = [teacher.chat(p) for p in teacher_prompts]
         pbar.update(len(teacher_replies))
+        teacher.llm().unload()
 
         for batch_i, reply in enumerate(teacher_replies):
             idx = idx_map[batch_i]
@@ -121,6 +122,7 @@ def gen_teacher_student_interactions(
 
         student_outputs = [students[idx].chat(p) for idx, p in zip(idx_map, student_prompts)]
         pbar.update(len(student_outputs))
+        student_llm.unload()
 
         for (reply, did_end), idx in zip(student_outputs, idx_map):
             interactions[idx].chat_history.root.append(
@@ -213,6 +215,7 @@ if __name__ == "__main__":
         seed_dataset = SeedDataset.model_validate_json(seeds_path.read_text())
     else:
         seed_dataset = gen_seeds(wikipedia, seed_llm, num_of_conversations=args.num_conversations)
+        seed_llm.unload()
         seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
         # Remove stale downstream outputs if seeds changed
         for f in output_dir.glob("int_*.json"):
@@ -243,6 +246,7 @@ if __name__ == "__main__":
 
             if not evaluations_path.exists():
                 evaluations_dataset = evaluate(interactions_dataset, judge_llm)
+                judge_llm.unload()
                 evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
 
     print("Finished processing")

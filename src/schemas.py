@@ -39,6 +39,9 @@ class ChatHistory(RootModel):
     def __str__(self) -> str:
         return "\n".join(str(m) for m in self.root)
 
+    def __len__(self) -> int:
+        return len(self.root)
+
 
 class Interaction(BaseModel):
     seed: Seed
@@ -86,6 +89,9 @@ class EvaluationDataset(BaseModel):
 
     def __str__(self) -> str:
         return "\n\n-------\n\n".join(str(e) for e in self.evaluations)
+
+    def __len__(self) -> int:
+        return len(self.evaluations)
 
 
 class JudgeDataset(BaseModel):
