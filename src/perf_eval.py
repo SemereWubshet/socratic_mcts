@@ -1,3 +1,4 @@
+import argparse
 import glob
 import pathlib
 
@@ -38,9 +39,15 @@ def parse_model_name(model_name: str) -> float:
 
 
 if __name__ == "__main__":
-    input_dir = pathlib.Path("./datasets/tmp")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("INPUT_DIR", type=pathlib.Path)
+    parser.add_argument("FIGS_DIR", type=pathlib.Path)
+    parser.add_argument("--bokeh-theme", type=pathlib.Path, default=pathlib.Path("./theme.yml"))
 
-    curdoc().theme = Theme(filename="./theme.yml")
+    args = parser.parse_args()
+
+    curdoc().theme = Theme(filename=args.bokeh_theme)
+    input_dir = args.INPUT_DIR
 
     df = pd.DataFrame()
     for name in glob.glob(str(input_dir / "eval_*.json")):
@@ -259,7 +266,7 @@ if __name__ == "__main__":
         hist, edges = np.histogram(
             (group["conversation_length"] - 1) / 2,
             density=True,
-            bins=np.arange(1, int(df['max_interactions'].max() / 2) + 1)
+            bins=np.arange(1, df['max_interactions'].max() + 1)
         )
 
         edges = edges - 0.5
