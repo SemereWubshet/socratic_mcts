@@ -1,7 +1,6 @@
 import abc
-import json
 import pathlib
-from json import JSONDecodeError
+import re
 from typing import Dict, List, Tuple, Union, Any
 
 import httpx
@@ -9,10 +8,6 @@ import ollama
 import openai
 from ollama import ResponseError
 from openai import NotGiven, NOT_GIVEN
-
-
-def escape_latex(raw_json_str):
-    return raw_json_str.replace('\\', '\\\\')
 
 
 class LLM(abc.ABC):
@@ -149,11 +144,17 @@ class StudentSeed(HasLLM):
         while trials < 10:
             output = self._llm.query([{"role": "system", "content": self._seed_prompt},
                                       {"role": "user", "content": f"```\n{source_content}\n```\nOUTPUT: "}])
-            try:
-                parsed = json.loads(output.strip())
-                return parsed["question"], parsed["main_topics"]
-            except JSONDecodeError:
+            output = output.strip()
+
+            match = re.search(
+                r"\[MAIN_TOPICS](?P<topics>.*?)\[\\MAIN_TOPICS](?P<question>.*?)\[\\QUESTION]", output, re.DOTALL
+            )
+
+            if match is None:
                 trials += 1
+                continue
+
+            return match.group("question"), match.group("topics")
 
         raise RuntimeError(
             f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {output}"
@@ -222,12 +223,19 @@ class Student(HasLLM):
                 {"role": "user",
                  "content": source_content}
             ])
-            escape = escape_latex(answer.strip())
-            try:
-                parsed = json.loads(escape)
-                return parsed["answer"], parsed["end"]
-            except JSONDecodeError:
+
+            match = re.findall(r"\[END]|\[CONTINUE]", answer)
+
+            if len(match) != 1:
                 trials += 1
+                continue
+
+            decision = match[0]
+
+            if decision == "[END]":
+                return answer.replace("[END]", "").strip(), True
+            else:
+                return answer.replace("[CONTINUE]", "").strip(), False
 
         raise RuntimeError(
             f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {answer}"

@@ -8,15 +8,11 @@ The question must be understandable on its own because the teacher does not have
 
 # Output Format
 
-Your evaluation must be a raw JSON with the following format:
-
-{{"main_topics": "(a description on what are the main topics you are seeking to learn - up to five points)", "question": "(the opening question)"}}
-
-Do not output opening or closing statements or any special formatting ‒ only the raw JSON.
+Your evaluation must have the format [MAIN_TOPICS]A description on what are the main topics you are seeking to learn - up to five points[\MAIN_TOPICS]The opening question[\QUESTION]. Do not output opening or closing statements or any special formatting.
 
 # Example
 
 ```
 {context}
 ```
-OUTPUT: {{"main_topics": "{main_topics}", "question": "{question}"}}
+OUTPUT: [MAIN_TOPICS]{main_topics}[\MAIN_TOPICS]{question}[\QUESTION]

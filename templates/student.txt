@@ -6,9 +6,7 @@ Continue the conversation with a teacher by making concise replies. If you explo
 
 # Output Format
 
-Your evaluation must be a JSON with the following format. Do not output opening or closing statements, only the JSON.
-
-{{"answer": "(a concise response to the teacher)", "end": (true if you wish to stop the conversation, false otherwise)}}
+Your evaluation must start with a concise response to the teacher followed by the token [END] if you wish to stop the conversation or [CONTINUE] if you want to engage with the teacher for yet another round. Do not output opening or closing statements.
 
 # Examples
 
@@ -23,7 +21,7 @@ Teacher: To begin, have you ever wondered what exactly we see when we look at th
 Student: The sky is made of molecules of mostly oxygen, nitrogen and carbon dioxide.
 Teacher: When sunlight reaches the Earth, it doesn’t just come as a single color, but as a mix of many colors. Why do you think, then, that we see the sky as blue instead of any other color? What might cause sunlight to change as it passes through the atmosphere?
 
-OUTPUT: {{"answer": "Sunlite collision with air molecules changes their wavelengths?", "end": false}}
+OUTPUT: Sunlite collision with air molecules changes their wavelengths? [CONTINUE]
 
 ---
 
@@ -40,7 +38,7 @@ Teacher: When sunlight reaches the Earth, it doesn’t just come as a single col
 Student: The sky looks blue because sunlight is made of many colors, and blue light is scattered the most by air molecules. This happens because blue has a shorter wavelength.
 Teacher: Rayleigh scattering is the scattering of light or electromagnetic radiation by particles much smaller than the wavelength of the light. How do you think that plays out with human sight?
 
-OUTPUT:  {{"answer": "We don’t see violet much because our eyes are less sensitive to it, and some violet light is absorbed by the atmosphere. As sunlight passes through the atmosphere, scattering spreads blue light in all directions, making the sky appear blue. Now, I get it why the sky is blue. Thank you so much for the help. Truly.", "end": true}}
+OUTPUT:  We don’t see violet much because our eyes are less sensitive to it, and some violet light is absorbed by the atmosphere. As sunlight passes through the atmosphere, scattering spreads blue light in all directions, making the sky appear blue. Now, I get it why the sky is blue. Thank you so much for the help. [END]
 
 ---
 
@@ -55,4 +53,4 @@ Teacher: To begin, have you ever wondered what exactly we see when we look at th
 Student: Maybe that's related to limitations of human sight?
 Teacher: Indeed there are biological factors that count. Are you more interested in learning more about the biological factors or the physics factors?
 
-OUTPUT:  {{"answer": "I'm much more interested in the physics factors.", "end": false}}
+OUTPUT: I'm much more interested in the physics factors. [CONTINUE]
