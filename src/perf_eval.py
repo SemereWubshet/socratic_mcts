@@ -282,11 +282,3 @@ if __name__ == "__main__":
 
         safe_name = teacher_llm.replace(':', '_').replace('/', '_')
         export_svgs(pX, filename=f"./figs/distribution_conversation_length_{safe_name}.svg")
-
-    # Failure Sampling
-    # Pick a small number of assessment: false examples per model and annotate failure reasons (direct answer, misunderstanding, generic response, etc.).
-    # You can then report:
-    # Frequency of failure types
-    # Which models fall into which traps
-    # Even a small n=10 per model gives rich insight.
-    pass
