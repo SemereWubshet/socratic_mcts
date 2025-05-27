@@ -161,7 +161,6 @@ class Gemma(LLM):
             "<start_of_turn>model\n"
             "{% endif %}"
         )
-        self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def query(self, messages: List[Dict[str, str]]) -> str:
         assert messages[0]["role"] == "user"
@@ -181,7 +180,7 @@ class Gemma(LLM):
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         output = self.model.generate(
-            **inputs, max_new_tokens=250, temperature=1.7, do_sample=True, pad_token_id=self.tokenizer.eos_token_id
+            **inputs, max_new_tokens=250, temperature=1.7, do_sample=False
         )
         response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
         return response
