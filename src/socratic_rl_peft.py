@@ -146,22 +146,21 @@ class Gemma(LLM):
             self.model = self.model.to(self.device)
 
         self.tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        self.tokenizer.chat_template = """\
-        {% for message in messages %}
-        {% if loop.first %}
-        <start_of_turn>{{ message['role'] }}
-        {{ instruction }}
-
-        {{ message['content'] }}<end_of_turn>
-        {% else %}
-        <start_of_turn>{{ message['role'] }}
-        {{ message['content'] }}<end_of_turn>
-        {% endif %}
-        {% endfor %}
-        {% if add_generation_prompt %}
-        <start_of_turn>model
-        {% endif %}
-        """
+        self.tokenizer.chat_template = (
+            "{% for message in messages %}"
+            "{% if loop.first %}"
+            "<start_of_turn>{{ message['role'] }}\n"
+            "{{ instruction }}\n\n"
+            "{{ message['content'] }}<end_of_turn>\n"
+            "{% else %}"
+            "<start_of_turn>{{ message['role'] }}\n"
+            "{{ message['content'] }}<end_of_turn>\n"
+            "{% endif %}"
+            "{% endfor %}"
+            "{% if add_generation_prompt %}"
+            "<start_of_turn>model\n"
+            "{% endif %}"
+        )
         self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def query(self, messages: List[Dict[str, str]]) -> str:
