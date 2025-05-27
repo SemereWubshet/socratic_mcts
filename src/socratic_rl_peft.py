@@ -239,7 +239,7 @@ def policy_train(
         output_dir=policy_checkpoints,
         learning_rate=1e-6,
         num_generations=2,
-        per_device_train_batch_size=1,
+        #per_device_train_batch_size=1,
         temperature=1.7,
         max_prompt_length=16,
         gradient_accumulation_steps=1,
