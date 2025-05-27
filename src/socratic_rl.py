@@ -82,7 +82,9 @@ class SmolLM(LLM):
         self.device = torch.device(device) if device is not None else None
         self.max_length = max_length
         self.model = AutoModelForCausalLM.from_pretrained(
-            self._model_name, torch_dtype=torch.float16, trust_remote_code=True
+            self._model_name, 
+	    #torch_dtype=torch.float16, 
+	    trust_remote_code=True
         )
 
         if self.device is not None:
@@ -114,7 +116,7 @@ class SmolLM(LLM):
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         output = self.model.generate(
-            **inputs, max_new_tokens=250, temperature=1.7, do_sample=True, pad_token_id=self.tokenizer.eos_token_id
+            **inputs, max_new_tokens=64,max_length=inputs["input_ids"].shape[1] + 64, temperature=1.0, do_sample=True, pad_token_id=self.tokenizer.eos_token_id , top_k=50,top_p=0.95,use_cache=True
         )
         response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
         return response
@@ -197,7 +199,7 @@ def vf_train(
         vf_output_path: pathlib.Path
 ) -> None:
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
-    training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5, gradient_checkpointing=True)
+    training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5, gradient_checkpointing=False)
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=768)
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
     trainer.train()
@@ -223,19 +225,23 @@ def policy_train(
     hf_dataset = Dataset.from_dict(dataset)
 
     rwd_fn = ActionValueFn(action_value_fn_path, max_length=768)
-
+    #deepspeed_config_path = "/homes/mediouni/sources/socratic_mcts/src/deepspeed_config.json"
+    deepspeed_config_path = str(pathlib.Path(__file__).parent / "deepspeed_config.json")
     training_args = GRPOConfig(
         output_dir=policy_checkpoints,
         learning_rate=1e-6,
         num_generations=8,
-        per_device_train_batch_size=2,
+        per_device_train_batch_size=1,
         temperature=1.7,
-        max_prompt_length=768,
-        gradient_accumulation_steps=16,
-        max_completion_length=128,
+        max_prompt_length=256,
+        gradient_accumulation_steps=1,
+        max_completion_length=32,
         num_train_epochs=1,
-        gradient_checkpointing=True,
+	gradient_checkpointing=False,
+        deepspeed=deepspeed_config_path,
+    
     )
+    #training_args.deepspeed = deepspeed_config_path
     # time.sleep(30)
     trainer = GRPOTrainer(
         args=training_args,
@@ -244,7 +250,10 @@ def policy_train(
         reward_processing_classes=rwd_fn.tokenizer,
         train_dataset=hf_dataset
     )
+    torch.cuda.empty_cache()
+    print("Starting policy training...", flush=True)
     trainer.train()
+    print("Saving policy model to:", output_dir, flush=True)
     trainer.save_model(output_dir)
 
 
@@ -267,8 +276,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--vf-training-it", type=int, default=6, help="Number of action-value function training steps"
     )
+    parser.add_argument(
+	"--train-batch-size", type=int, default=1, help="Batch size for training"
+    )
 
     args = parser.parse_args()
+    # Ensure the URL is correctly formatted when used
+    ollama_client = args.ollama_client.strip('"')  # Remove any unwanted quotes
 
     mp.set_start_method('spawn')
 
@@ -278,10 +292,10 @@ if __name__ == "__main__":
     train_dir.mkdir(exist_ok=True, parents=True)
 
     nemo = OllamaAgent(model="mistral-nemo", client=Client(args.ollama_client))
-    nemo.healthcheck()
+    # nemo.healthcheck()
 
     llama3 = OllamaAgent(model="llama3.3", client=Client(args.ollama_client))
-    llama3.healthcheck()
+    # llama3.healthcheck()
 
     for i in range(args.num_iterations):
         train_it_dir = train_dir / f"iteration_{i}"
@@ -297,6 +311,7 @@ if __name__ == "__main__":
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
         current_policy_path = previous_iteration / "policy_fn" if i > 1 else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+        #current_policy_path = previous_iteration / "policy_fn" if i > 1 else "tiiuae/falcon-rw-1b"
         current_vf_path = previous_iteration / "action_value_fn" if i > 1 else "allenai/longformer-base-4096"
 
         if policy_model_dir.exists():
