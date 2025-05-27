@@ -129,6 +129,76 @@ class SmolLM(LLM):
         self.model.save_pretrained(path)
         self.tokenizer.save_pretrained(path)
 
+class Gemma(LLM):
+
+    def __init__(self,
+                 base_model: str = "google/gemma-3-4b-pt",
+                 max_length: int = 1024,
+                 device: Optional[str] = None):
+        self._model_name = base_model
+        self.device = torch.device(device) if device is not None else None
+        self.max_length = max_length
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self._model_name, torch_dtype=torch.float16, trust_remote_code=True
+        )
+
+        if self.device is not None:
+            self.model = self.model.to(self.device)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+        self.tokenizer.chat_template = """\
+        {% for message in messages %}
+        {% if loop.first %}
+        <start_of_turn>{{ message['role'] }}
+        {{ instruction }}
+
+        {{ message['content'] }}<end_of_turn>
+        {% else %}
+        <start_of_turn>{{ message['role'] }}
+        {{ message['content'] }}<end_of_turn>
+        {% endif %}
+        {% endfor %}
+        {% if add_generation_prompt %}
+        <start_of_turn>model
+        {% endif %}
+        """
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+    def query(self, messages: List[Dict[str, str]]) -> str:
+        assert messages[0]["role"] == "user"
+        _messages = [{"role": "user" if m["role"] == "user" else "model", "content": m["content"]} for m in messages]
+        raw_prompt = self.tokenizer.apply_chat_template(_messages, tokenize=False, add_generation_prompt=True, instruction="Only reply like a pirate.")
+        print(raw_prompt)
+        tokenized = self.tokenizer(
+            raw_prompt, return_tensors="pt", truncation=True, max_length=self.max_length
+        )
+        inputs = {
+            "input_ids": tokenized.input_ids,
+            "attention_mask": tokenized.attention_mask
+        }
+
+        if self.device is not None:
+            inputs["input_ids"] = inputs["input_ids"].to(self.device)
+            inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
+
+        output = self.model.generate(
+            **inputs, max_new_tokens=250, temperature=1.7, do_sample=True, pad_token_id=self.tokenizer.eos_token_id
+        )
+        response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
+        return response
+
+    def healthcheck(self) -> None:
+        pass
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def save(self, path: pathlib.Path) -> None:
+        self.model.save_pretrained(path)
+        self.tokenizer.save_pretrained(path)
+
+
 
 class SimpleTeacher(Teacher):
 
