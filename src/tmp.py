@@ -1,4 +1,4 @@
-from src.socratic_rl_peft import Gemma
+from socratic_rl_peft import Gemma
 
 if __name__ == "__main__":
     s = Gemma()
