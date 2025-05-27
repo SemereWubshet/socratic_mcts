@@ -246,7 +246,7 @@ def policy_train(
         max_completion_length=8,
         num_train_epochs=1,
         gradient_checkpointing=True,
-        deepspeed=deepspeed_config_path,
+        # deepspeed=deepspeed_config_path,
     )
 
     lora_config = LoraConfig(
