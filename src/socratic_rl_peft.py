@@ -1,26 +1,24 @@
 import argparse
 import math
 import pathlib
-import time
 from collections import defaultdict
 from typing import List, Dict, Optional
 
 import numpy as np
 import torch
+import torch.multiprocessing as mp
 from datasets import load_dataset, Dataset
 from ollama import Client
-from tqdm import tqdm
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, AutoModelForSequenceClassification
+from peft import LoraConfig, PeftModel, get_peft_model
+from torch.multiprocessing import Process
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, \
+    AutoModelForSequenceClassification
 from trl import GRPOConfig, GRPOTrainer
 
 from agents import Teacher, OllamaAgent, LLM
 from mcts import discount_cumsum
 from rollout import SeedDataset, gen_seeds, InteractionDataset, gen_teacher_student_interactions, EvaluationDataset, \
     evaluate, ChatHistory
-
-import torch.multiprocessing as mp
-from torch.multiprocessing import Process
-from peft import LoraConfig, PeftModel, get_peft_model
 
 
 class ActionValueFn:
@@ -75,14 +73,18 @@ class SmolLM(LLM):
 
     def __init__(self,
                  base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct",
+                 adapter_path: Optional[pathlib.Path] = None,
                  max_length: int = 1024,
                  device: Optional[str] = None):
         self._model_name = base_model
         self.device = torch.device(device) if device is not None else None
         self.max_length = max_length
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self._model_name, torch_dtype=torch.float16, trust_remote_code=True
-        )
+        if adapter_path is not None:
+            self.model = PeftModel.from_pretrained(base_model, adapter_path)
+        else:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                self._model_name, torch_dtype=torch.float16, trust_remote_code=True
+            )
 
         if self.device is not None:
             self.model = self.model.to(self.device)
@@ -130,9 +132,6 @@ class SmolLM(LLM):
         self.tokenizer.save_pretrained(path)
 
 
-
-
-
 class SimpleTeacher(Teacher):
 
     def chat(self, chat_history: ChatHistory) -> str:
@@ -145,7 +144,8 @@ class SimpleTeacher(Teacher):
 
 def rollout(
         dataset_path: pathlib.Path,
-        policy_path: str,
+        base_model: str,
+        policy_path: Optional[pathlib.Path],
         output_path: pathlib.Path,
         device: str,
         ollama_client: str,
@@ -155,7 +155,7 @@ def rollout(
 
     nemo = OllamaAgent(model="mistral-small3.1:24b", client=Client(ollama_client))
     seed_dataset = SeedDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
-    smollm = SmolLM(policy_path, device=device)
+    smollm = SmolLM(base_model, adapter_path=policy_path, device=device)
     interactions_dataset = gen_teacher_student_interactions(
         seed_dataset, nemo, SimpleTeacher(smollm), max_interactions=max_interactions
     )
@@ -175,7 +175,8 @@ def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pat
     for item in evaluations_dataset.root:
         assessment = item.assessment
         history = item.interaction.chat_history.root
-        trajectory = [ChatHistory.model_validate(history[:2 * z]).format() for z in range(1, math.ceil(len(history) / 2))]
+        trajectory = [ChatHistory.model_validate(history[:2 * z]).format() for z in
+                      range(1, math.ceil(len(history) / 2))]
         values = [action_value_fn(h) for h in trajectory]
 
         gamma = 1.
@@ -208,7 +209,8 @@ def vf_train(
     torch.cuda.memory._record_memory_history(max_entries=100000)
 
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
-    training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5, gradient_checkpointing=True)
+    training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5,
+                                      gradient_checkpointing=True)
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=768)
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
     trainer.train()
@@ -233,7 +235,8 @@ def policy_train(
     dataset = defaultdict(list)
     for item in evaluations_dataset.root:
         history = item.interaction.chat_history.root
-        trajectory = [ChatHistory.model_validate(history[:2 * z + 1]).format() for z in range(math.ceil(len(history) / 2))]
+        trajectory = [ChatHistory.model_validate(history[:2 * z + 1]).format() for z in
+                      range(math.ceil(len(history) / 2))]
         dataset["prompt"].extend(trajectory)
     hf_dataset = Dataset.from_dict(dataset)
 
@@ -259,16 +262,16 @@ def policy_train(
         warmup_steps=100,
         lr_scheduler_type="linear",
         report_to="none",  # add "wandb" or "tensorboard" if needed
-        #learning_rate=1e-6,
-        #num_generations=2,
-        #per_device_train_batch_size=1,
-        #temperature=1.7,
-        #max_prompt_length=16,
-        #gradient_accumulation_steps=1,
-        #max_completion_length=8,
-        #num_train_epochs=1,
-        #gradient_checkpointing=True,
-        #deepspeed=deepspeed_config_path,
+        # learning_rate=1e-6,
+        # num_generations=2,
+        # per_device_train_batch_size=1,
+        # temperature=1.7,
+        # max_prompt_length=16,
+        # gradient_accumulation_steps=1,
+        # max_completion_length=8,
+        # num_train_epochs=1,
+        # gradient_checkpointing=True,
+        # deepspeed=deepspeed_config_path,
     )
 
     # Load previous adapter if this is not iteration 0
@@ -381,7 +384,7 @@ if __name__ == "__main__":
             print("#### Rolling out policy")
             p = Process(
                 target=rollout,
-                args=(seeds_path, current_policy_path or args.base_model, interactions_path, "cuda", args.ollama_client,
+                args=(seeds_path, args.base_model, current_policy_path, interactions_path, "cuda", args.ollama_client,
                       args.max_interactions)
             )
             p.start()
