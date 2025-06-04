@@ -425,6 +425,7 @@ if __name__ == "__main__":
 
         print()
         print("#### Policy training")
+        print(f"current_policy_path={current_policy_path}")
         policy_train(
             evaluations_path,
             policy_checkpoints,
