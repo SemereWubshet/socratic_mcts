@@ -20,7 +20,7 @@ from rollout import SeedDataset, gen_seeds, InteractionDataset, gen_teacher_stud
 
 import torch.multiprocessing as mp
 from torch.multiprocessing import Process
-from peft import LoraConfig
+from peft import LoraConfig, PeftModel, get_peft_model
 
 
 class ActionValueFn:
@@ -223,21 +223,25 @@ def policy_train(
         policy_checkpoints: pathlib.Path,
         action_value_fn_path: str,
         policy_path: str,
-        output_dir: pathlib.Path
+        output_dir: pathlib.Path,
+        base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 ) -> None:
     torch.cuda.memory._record_memory_history(max_entries=100000)
 
+    # Load dataset
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
     dataset = defaultdict(list)
     for item in evaluations_dataset.root:
         history = item.interaction.chat_history.root
         trajectory = [ChatHistory.model_validate(history[:2 * z + 1]).format() for z in range(math.ceil(len(history) / 2))]
         dataset["prompt"].extend(trajectory)
-
     hf_dataset = Dataset.from_dict(dataset)
 
+    # Define reward model
     rwd_fn = ActionValueFn(action_value_fn_path, max_length=768)
     deepspeed_config_path = "/homes/mediouni/sources/socratic_mcts/src/deepspeed_config2.json"
+
+    # GRPO config
     training_args = GRPOConfig(
         output_dir=policy_checkpoints,
         learning_rate=5e-6,  # higher LR for faster adaptation if LoRA is used
@@ -246,7 +250,7 @@ def policy_train(
         max_prompt_length=512,  # allow richer context
         max_completion_length=128,  # generate more thoughtful responses
         num_generations=4,  # increase diversity
-        num_train_epochs=3,  # train longer
+        num_train_epochs=1,  # train longer
         gradient_accumulation_steps=4,
         gradient_checkpointing=True,
         save_strategy="epoch",
@@ -267,25 +271,37 @@ def policy_train(
         #deepspeed=deepspeed_config_path,
     )
 
-    lora_config = LoraConfig(
-        r=16,
-        lora_alpha=32,
-        lora_dropout=0.05,
-        bias="none",
-        task_type="CAUSAL_LM",
-    )
+    # Load previous adapter if this is not iteration 0
+    if pathlib.Path(policy_path).exists():
+        print(f"Loading previous PEFT weights from {policy_path}")
+        model = PeftModel.from_pretrained(base_model, policy_path)
+    else:
+        print("No previous adapter found — starting fresh.")
+        lora_config = LoraConfig(
+            r=16,
+            lora_alpha=32,
+            lora_dropout=0.05,
+            bias="none",
+            task_type="CAUSAL_LM",
+        )
+        model = get_peft_model(base_model, lora_config)
+
+    torch.cuda.empty_cache()
+    print(torch.cuda.memory_summary())
+
+    # Train the model with GRPO
     trainer = GRPOTrainer(
         args=training_args,
-        model=policy_path,
+        model=model,
         reward_funcs=rwd_fn.model,
         reward_processing_classes=rwd_fn.tokenizer,
         train_dataset=hf_dataset,
-        peft_config=lora_config,
     )
     torch.cuda.empty_cache()
-    print(torch.cuda.memory_summary())
     trainer.train()
-    trainer.save_model(output_dir)
+
+    # Save only the LoRA adapter
+    model.save_pretrained(str(output_dir))
 
     torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_policy_train.pkl")
     torch.cuda.memory._record_memory_history(enabled=None)
@@ -338,7 +354,7 @@ if __name__ == "__main__":
         policy_checkpoints = train_it_dir / "policy_checkpoints"
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
-        current_policy_path = previous_iteration / "policy_fn" if i > 0 else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+        current_policy_path = previous_iteration / "policy_fn" if i > 0 else ""
         current_vf_path = previous_iteration / "action_value_fn" if i > 0 else "allenai/longformer-base-4096"
 
         if policy_model_dir.exists():
