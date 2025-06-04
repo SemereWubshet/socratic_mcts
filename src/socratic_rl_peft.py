@@ -242,9 +242,9 @@ def rollout(
     seed_dataset = SeedDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
 
     if base_model == "phi4":
-        model = SmolLM(adapter_path=policy_path, device=device)
-    else:
         model = Phi4(adapter_path=policy_path, device=device)
+    else:
+        model = SmolLM(adapter_path=policy_path, device=device)
 
     interactions_dataset = gen_teacher_student_interactions(
         seed_dataset, nemo, SimpleTeacher(model), max_interactions=max_interactions
