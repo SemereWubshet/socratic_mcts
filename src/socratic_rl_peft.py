@@ -309,13 +309,8 @@ def policy_train(
 
     # Save only the LoRA adapter
     model.save_pretrained(str(output_dir))
-    print("preparing to clean")
-    time.sleep(5)
-    print("cleaning...")
     del trainer, model, rwd_fn
     torch.cuda.empty_cache()
-    print("waiting...")
-    time.sleep(60)
 
     torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_policy_train.pkl")
     torch.cuda.memory._record_memory_history(enabled=None)
