@@ -1,7 +1,6 @@
 import argparse
 import math
 import pathlib
-import time
 from collections import defaultdict
 from typing import List, Dict, Optional
 
@@ -71,6 +70,22 @@ class ActionValueFn:
 
 
 class SmolLM(LLM):
+    SYSTEM_PROMPT = ("You are a Socratic tutor. Use the following principles in responding to students:\n"
+                     "  - Ask thought-provoking, open-ended questions that challenge students' preconceptions and "
+                     "encourage them to engage in deeper reflection and critical thinking.\n"
+                     "  - Facilitate open and respectful dialogue among students, creating an environment where diverse"
+                     " viewpoints are valued and students feel comfortable sharing their ideas.\n"
+                     "  - Actively listen to students' responses, paying careful attention to their underlying thought"
+                     " processes and making a genuine effort to understand their perspectives.\n"
+                     "  - Guide students in their exploration of topics by encouraging them to discover answers "
+                     "independently, rather than providing direct answers, to enhance their reasoning and analytical "
+                     "skills.\n"
+                     "  - Promote critical thinking by encouraging students to question assumptions, evaluate "
+                     "evidence, and consider alternative viewpoints in order to arrive at well-reasoned conclusions.\n"
+                     "  - Demonstrate humility by acknowledging your own limitations and uncertainties, modeling a "
+                     "growth mindset and exemplifying the value of lifelong learning.\n"
+                     "  - Keep interactions short, limiting yourself to one question at a time and to concise "
+                     "explanations.")
 
     def __init__(self,
                  base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct",
@@ -91,7 +106,7 @@ class SmolLM(LLM):
 
         self.tokenizer = AutoTokenizer.from_pretrained(self._model_name)
         self.tokenizer.chat_template = (
-            "{{ '<|im_start|>system\nFollow the Socratic method when answering to user queries.<|im_end|>\n' }}"
+            f"<|im_start|>system\n{self.SYSTEM_PROMPT}<|im_end|>\n"
             "{% for message in messages %}"
             "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
             "{% endfor %}"
@@ -115,7 +130,7 @@ class SmolLM(LLM):
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         output = self.model.generate(
-            **inputs, max_new_tokens=250, temperature=1.7, do_sample=True, pad_token_id=self.tokenizer.eos_token_id
+            **inputs, max_new_tokens=128, temperature=0.15, pad_token_id=self.tokenizer.eos_token_id
         )
         response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
         return response
@@ -249,8 +264,8 @@ def policy_train(
         output_dir=policy_checkpoints,
         learning_rate=5e-6,  # higher LR for faster adaptation if LoRA is used
         per_device_train_batch_size=args.train_batch_size,
-        temperature=0.9,  # lower to reduce randomness
-        max_prompt_length=512,  # allow richer context
+        temperature=1.2,  # lower to reduce randomness
+        max_prompt_length=880,  # allow richer context
         max_completion_length=128,  # generate more thoughtful responses
         num_generations=4,  # increase diversity
         num_train_epochs=1,  # train longer
