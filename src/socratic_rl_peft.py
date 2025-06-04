@@ -183,18 +183,10 @@ class Phi4(LLM):
             self.model = self.model.to(self.device)
 
         self.tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        self.tokenizer.chat_template = (
-            f"<|im_start|>system\n{self.SYSTEM_PROMPT}<|im_end|>\n"
-            "{% for message in messages %}"
-            "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
-            "{% endfor %}"
-            "{% if add_generation_prompt %}"
-            "{{ '<|im_start|>assistant\n' }}"
-            "{% endif %}")
-        self.tokenizer.pad_token = self.tokenizer.eos_token
 
     def query(self, messages: List[Dict[str, str]]) -> str:
-        raw_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        _messages = [{"role": "system", "content": self.SYSTEM_PROMPT.strip()}, ] + messages
+        raw_prompt = self.tokenizer.apply_chat_template(_messages, tokenize=False, add_generation_prompt=True)
         tokenized = self.tokenizer(
             raw_prompt, return_tensors="pt", truncation=True, max_length=self.max_length
         )
