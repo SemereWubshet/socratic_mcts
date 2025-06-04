@@ -272,7 +272,7 @@ def policy_train(
     )
 
     # Load previous adapter if this is not iteration 0
-    if policy_path is None:
+    if policy_path is not None:
         print(f"Loading previous PEFT weights from {policy_path}")
         model = PeftModel.from_pretrained(base_model, policy_path)
     else:
@@ -367,8 +367,10 @@ if __name__ == "__main__":
         if not seeds_path.exists():
             seed_dataset = gen_seeds(wikipedia, nemo, num_of_conversations=args.num_conversations)
             seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
-        print(f"interactions path:{interactions_path.exists()}")
+
         if not interactions_path.exists():
+            print()
+            print("#### Rolling out policy")
             p = Process(
                 target=rollout,
                 args=(seeds_path, current_policy_path or args.base_model, interactions_path, "cuda", args.ollama_client,
@@ -380,6 +382,8 @@ if __name__ == "__main__":
             p.close()
 
         if not evaluations_path.exists():
+            print()
+            print("#### Policy evaluation")
             interactions_dataset = InteractionDataset.model_validate_json(interactions_path.read_text())
             evaluations_dataset = evaluate(interactions_dataset, llama3)
             evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
@@ -396,6 +400,8 @@ if __name__ == "__main__":
                     if j < args.vf_training_it - 1 else action_vfn_model_dir
                 )
 
+                print()
+                print("#### VF rollout")
                 dataset_path = vf_training_path / f"it_{j}" / "dataset"
                 p = Process(target=vf_rollout, args=(evaluations_path, str(current_vf_step_path), dataset_path, "cuda"))
                 p.start()
@@ -403,6 +409,8 @@ if __name__ == "__main__":
                 assert p.exitcode == 0
                 p.close()
 
+                print()
+                print("#### VF training")
                 p = Process(
                     target=vf_train,
                     args=(dataset_path, value_checkpoints / f"it_{j}", str(current_vf_step_path), vf_target_path)
@@ -412,7 +420,8 @@ if __name__ == "__main__":
                 assert p.exitcode == 0
                 p.close()
 
-        print("Starting policy training...")
+        print()
+        print("#### Policy training")
         policy_train(
             evaluations_path,
             policy_checkpoints,
