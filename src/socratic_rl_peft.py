@@ -342,6 +342,7 @@ if __name__ == "__main__":
     llama3 = OllamaAgent(model="mistral-small3.1:24b", client=Client(args.ollama_client))
 
     for i in range(args.num_iterations):
+        print(f" -------------------- ------------------ starting it {i} -------------------- ------------------")
         train_it_dir = train_dir / f"iteration_{i}"
         train_it_dir.mkdir(exist_ok=True)
 
