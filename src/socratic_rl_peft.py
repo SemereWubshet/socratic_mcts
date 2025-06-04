@@ -130,7 +130,7 @@ class SmolLM(LLM):
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         output = self.model.generate(
-            **inputs, max_new_tokens=128, do_samples=True, temperature=0.15, pad_token_id=self.tokenizer.eos_token_id
+            **inputs, max_new_tokens=128, do_sample=True, temperature=0.15, pad_token_id=self.tokenizer.eos_token_id
         )
         response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
         return response
