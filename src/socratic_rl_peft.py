@@ -339,7 +339,7 @@ if __name__ == "__main__":
 
     nemo = OllamaAgent(model="mistral-small3.1:24b", client=Client(args.ollama_client))
 
-    llama3 = OllamaAgent(model="llama3.3", client=Client(args.ollama_client))
+    llama3 = OllamaAgent(model="mistral-small3.1:24b", client=Client(args.ollama_client))
 
     for i in range(args.num_iterations):
         train_it_dir = train_dir / f"iteration_{i}"
