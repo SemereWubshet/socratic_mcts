@@ -284,7 +284,10 @@ def policy_train(
             bias="none",
             task_type="CAUSAL_LM",
         )
-        model = get_peft_model(base_model, lora_config)
+        model = AutoModelForCausalLM.from_pretrained(
+            base_model, torch_dtype=torch.float16, trust_remote_code=True
+        )
+        model = get_peft_model(model, lora_config)
 
     torch.cuda.empty_cache()
     print(torch.cuda.memory_summary())
