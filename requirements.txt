@@ -8,7 +8,7 @@ google-generativeai
 datasets
 pydantic==2.10.0
 scikit-learn
-transformers[torch]==4.48.0
+transformers[torch]==4.49.0
 torch
 trl[peft]==0.14.0
 deepspeed
