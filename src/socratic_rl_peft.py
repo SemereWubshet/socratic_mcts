@@ -252,7 +252,7 @@ def policy_train(
         num_generations=4,  # increase diversity
         num_train_epochs=1,  # train longer
         gradient_accumulation_steps=4,
-        gradient_checkpointing=True,
+        gradient_checkpointing=False,
         save_strategy="epoch",
         logging_steps=50,
         evaluation_strategy="no",  # consider "epoch" if val set is added
@@ -288,6 +288,11 @@ def policy_train(
             base_model, torch_dtype=torch.float16, trust_remote_code=True
         )
         model = get_peft_model(model, lora_config)
+        print("before")
+        model.print_trainable_parameters()
+        model.train()
+        print("after")
+        model.print_trainable_parameters()
 
     torch.cuda.empty_cache()
     print(torch.cuda.memory_summary())
