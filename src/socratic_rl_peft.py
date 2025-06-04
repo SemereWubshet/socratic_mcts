@@ -79,12 +79,11 @@ class SmolLM(LLM):
         self._model_name = base_model
         self.device = torch.device(device) if device is not None else None
         self.max_length = max_length
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self._model_name, torch_dtype=torch.float16, trust_remote_code=True
+        )
         if adapter_path is not None:
-            self.model = PeftModel.from_pretrained(base_model, adapter_path)
-        else:
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self._model_name, torch_dtype=torch.float16, trust_remote_code=True
-            )
+            self.model = PeftModel.from_pretrained(self.model, adapter_path)
 
         if self.device is not None:
             self.model = self.model.to(self.device)
