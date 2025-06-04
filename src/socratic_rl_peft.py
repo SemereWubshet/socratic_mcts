@@ -367,26 +367,9 @@ def policy_train(
     model = AutoModelForCausalLM.from_pretrained(
         base_model, torch_dtype=torch.float16, trust_remote_code=True
     )
-
-    # Try to load adapter if exists
-    if policy_path is not None and policy_path.exists():
+    if policy_path is not None:
         print(f"Loading previous PEFT weights from {policy_path}")
-        try:
-            model = PeftModel.from_pretrained(model, policy_path, is_trainable=True)
-        except RuntimeError as e:
-            print("⚠️ PEFT load failed due to shape mismatch. Starting fresh.")
-            print(e)
-
-            # fallback to fresh init
-            lora_config = LoraConfig(
-                r=16,
-                lora_alpha=32,
-                lora_dropout=0.05,
-                bias="none",
-                target_modules=["qkv_proj", "o_proj"],
-                task_type="CAUSAL_LM",
-            )
-            model = get_peft_model(model, lora_config)
+        model = PeftModel.from_pretrained(model, policy_path, is_trainable=True)
     else:
         print("No previous adapter found — starting fresh.")
         lora_config = LoraConfig(
@@ -394,12 +377,12 @@ def policy_train(
             lora_alpha=32,
             lora_dropout=0.05,
             bias="none",
-            target_modules=["qkv_proj", "o_proj"],
+            target_modules=["q_proj", "v_proj"],
             task_type="CAUSAL_LM",
         )
-        model = get_peft_model(model, lora_config)
 
-    model.train()
+        model = get_peft_model(model, lora_config)
+        model.train()
 
     torch.cuda.empty_cache()
     print(torch.cuda.memory_summary())
