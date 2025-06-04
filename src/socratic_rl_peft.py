@@ -273,10 +273,12 @@ def policy_train(
         # deepspeed=deepspeed_config_path,
     )
 
-    # Load previous adapter if this is not iteration 0
+    model = AutoModelForCausalLM.from_pretrained(
+        base_model, torch_dtype=torch.float16, trust_remote_code=True
+    )
     if policy_path is not None:
         print(f"Loading previous PEFT weights from {policy_path}")
-        model = PeftModel.from_pretrained(base_model, policy_path)
+        model = PeftModel.from_pretrained(model, policy_path, is_trainable=True)
     else:
         print("No previous adapter found — starting fresh.")
         lora_config = LoraConfig(
@@ -286,15 +288,9 @@ def policy_train(
             bias="none",
             task_type="CAUSAL_LM",
         )
-        model = AutoModelForCausalLM.from_pretrained(
-            base_model, torch_dtype=torch.float16, trust_remote_code=True
-        )
+
         model = get_peft_model(model, lora_config)
-        print("before")
-        model.print_trainable_parameters()
         model.train()
-        print("after")
-        model.print_trainable_parameters()
 
     torch.cuda.empty_cache()
     print(torch.cuda.memory_summary())
