@@ -377,7 +377,7 @@ def policy_train(
             lora_alpha=32,
             lora_dropout=0.05,
             bias="none",
-            target_modules=["q_proj", "v_proj"],
+            target_modules=["qkv_proj", "o_proj"],
             task_type="CAUSAL_LM",
         )
 
