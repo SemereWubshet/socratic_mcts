@@ -222,7 +222,7 @@ def policy_train(
         dataset_path: pathlib.Path,
         policy_checkpoints: pathlib.Path,
         action_value_fn_path: str,
-        policy_path: str,
+        policy_path: Optional[pathlib.Path],
         output_dir: pathlib.Path,
         base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 ) -> None:
@@ -272,7 +272,7 @@ def policy_train(
     )
 
     # Load previous adapter if this is not iteration 0
-    if pathlib.Path(policy_path).exists():
+    if policy_path is None:
         print(f"Loading previous PEFT weights from {policy_path}")
         model = PeftModel.from_pretrained(base_model, policy_path)
     else:
@@ -326,6 +326,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--vf-training-it", type=int, default=6, help="Number of action-value function training steps"
     )
+    parser.add_argument(
+        "--base-model", type=str, default="HuggingFaceTB/SmolLM2-1.7B-Instruct", help="Base model for PEFT"
+    )
     parser.add_argument("--train-batch-size", type=int, default=1, help="Batch size for training")
 
     args = parser.parse_args()
@@ -355,7 +358,7 @@ if __name__ == "__main__":
         policy_checkpoints = train_it_dir / "policy_checkpoints"
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
-        current_policy_path = previous_iteration / "policy_fn" if i > 0 else ""
+        current_policy_path = previous_iteration / "policy_fn" if i > 0 else None
         current_vf_path = previous_iteration / "action_value_fn" if i > 0 else "allenai/longformer-base-4096"
 
         if policy_model_dir.exists():
@@ -368,7 +371,8 @@ if __name__ == "__main__":
         if not interactions_path.exists():
             p = Process(
                 target=rollout,
-                args=(seeds_path, str(current_policy_path), interactions_path, "cuda", args.ollama_client, args.max_interactions)
+                args=(seeds_path, current_policy_path or args.base_model, interactions_path, "cuda", args.ollama_client,
+                      args.max_interactions)
             )
             p.start()
             p.join()
@@ -413,6 +417,6 @@ if __name__ == "__main__":
             evaluations_path,
             policy_checkpoints,
             str(action_vfn_model_dir),
-            str(current_policy_path),
+            current_policy_path,
             policy_model_dir
         )
