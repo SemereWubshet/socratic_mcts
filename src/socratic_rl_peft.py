@@ -288,7 +288,9 @@ def policy_train(
             bias="none",
             task_type="CAUSAL_LM",
         )
-        model = PeftModel.from_pretrained(model, policy_path, config=lora_config, is_trainable=True)
+
+        model = get_peft_model(model, lora_config)
+        model.train()
 
     torch.cuda.empty_cache()
     print(torch.cuda.memory_summary())
