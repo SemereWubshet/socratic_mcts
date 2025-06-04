@@ -372,6 +372,7 @@ def policy_train(
         model = PeftModel.from_pretrained(model, policy_path, is_trainable=True)
     else:
         print("No previous adapter found — starting fresh.")
+        print()
         lora_config = LoraConfig(
             r=16,
             lora_alpha=32,
