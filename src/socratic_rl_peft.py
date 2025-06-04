@@ -147,6 +147,84 @@ class SmolLM(LLM):
         self.tokenizer.save_pretrained(path)
 
 
+class Phi4(LLM):
+    SYSTEM_PROMPT = ("You are a Socratic tutor. Use the following principles in responding to students:\n"
+                     "  - Ask thought-provoking, open-ended questions that challenge students' preconceptions and "
+                     "encourage them to engage in deeper reflection and critical thinking.\n"
+                     "  - Facilitate open and respectful dialogue among students, creating an environment where diverse"
+                     " viewpoints are valued and students feel comfortable sharing their ideas.\n"
+                     "  - Actively listen to students' responses, paying careful attention to their underlying thought"
+                     " processes and making a genuine effort to understand their perspectives.\n"
+                     "  - Guide students in their exploration of topics by encouraging them to discover answers "
+                     "independently, rather than providing direct answers, to enhance their reasoning and analytical "
+                     "skills.\n"
+                     "  - Promote critical thinking by encouraging students to question assumptions, evaluate "
+                     "evidence, and consider alternative viewpoints in order to arrive at well-reasoned conclusions.\n"
+                     "  - Demonstrate humility by acknowledging your own limitations and uncertainties, modeling a "
+                     "growth mindset and exemplifying the value of lifelong learning.\n"
+                     "  - Keep interactions short, limiting yourself to one question at a time and to concise "
+                     "explanations.")
+
+    def __init__(self,
+                 base_model: str = "microsoft/Phi-4-mini-instruct",
+                 adapter_path: Optional[pathlib.Path] = None,
+                 max_length: int = 1024,
+                 device: Optional[str] = None):
+        self._model_name = base_model
+        self.device = torch.device(device) if device is not None else None
+        self.max_length = max_length
+        self.model = AutoModelForCausalLM.from_pretrained(
+            self._model_name, torch_dtype=torch.float16, trust_remote_code=True
+        )
+        if adapter_path is not None:
+            self.model = PeftModel.from_pretrained(self.model, adapter_path)
+
+        if self.device is not None:
+            self.model = self.model.to(self.device)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(self._model_name)
+        self.tokenizer.chat_template = (
+            f"<|im_start|>system\n{self.SYSTEM_PROMPT}<|im_end|>\n"
+            "{% for message in messages %}"
+            "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
+            "{% endfor %}"
+            "{% if add_generation_prompt %}"
+            "{{ '<|im_start|>assistant\n' }}"
+            "{% endif %}")
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+    def query(self, messages: List[Dict[str, str]]) -> str:
+        raw_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        tokenized = self.tokenizer(
+            raw_prompt, return_tensors="pt", truncation=True, max_length=self.max_length
+        )
+        inputs = {
+            "input_ids": tokenized.input_ids,
+            "attention_mask": tokenized.attention_mask
+        }
+
+        if self.device is not None:
+            inputs["input_ids"] = inputs["input_ids"].to(self.device)
+            inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
+
+        output = self.model.generate(
+            **inputs, max_new_tokens=128, do_sample=True, temperature=0.15, pad_token_id=self.tokenizer.eos_token_id
+        )
+        response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
+        return response
+
+    def healthcheck(self) -> None:
+        pass
+
+    @property
+    def model_name(self) -> str:
+        return self._model_name
+
+    def save(self, path: pathlib.Path) -> None:
+        self.model.save_pretrained(path)
+        self.tokenizer.save_pretrained(path)
+
+
 class SimpleTeacher(Teacher):
 
     def chat(self, chat_history: ChatHistory) -> str:
@@ -170,9 +248,14 @@ def rollout(
 
     nemo = OllamaAgent(model="mistral-small3.1:24b", client=Client(ollama_client))
     seed_dataset = SeedDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
-    smollm = SmolLM(base_model, adapter_path=policy_path, device=device)
+
+    if base_model == "phi4":
+        model = SmolLM(adapter_path=policy_path, device=device)
+    else:
+        model = Phi4(adapter_path=policy_path, device=device)
+
     interactions_dataset = gen_teacher_student_interactions(
-        seed_dataset, nemo, SimpleTeacher(smollm), max_interactions=max_interactions
+        seed_dataset, nemo, SimpleTeacher(model), max_interactions=max_interactions
     )
     output_path.write_text(interactions_dataset.model_dump_json(indent=4))
 
@@ -351,7 +434,7 @@ if __name__ == "__main__":
         "--vf-training-it", type=int, default=6, help="Number of action-value function training steps"
     )
     parser.add_argument(
-        "--base-model", type=str, default="HuggingFaceTB/SmolLM2-1.7B-Instruct", help="Base model for PEFT"
+        "--base-model", type=str, default="phi4", choices=["phi4", "smollm"], help="Base model for PEFT"
     )
     parser.add_argument("--train-batch-size", type=int, default=1, help="Batch size for training")
 
