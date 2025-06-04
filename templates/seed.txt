@@ -6,7 +6,7 @@ The question must be short, concise and hint about the main topics, but without 
 
 # Output Format
 
-Your evaluation must be a JSON with the following format. Do not output opening or closing statements, only the JSON.
+Your evaluation must be a JSON with the following format. Do not output opening or closing statements, Markdown formatting, or backticks around the JSON output. Output only the raw JSON.
 
 {{"main_topics": "(a description on what are the main topics you are seeking to learn - up to five points)", "question": "(the opening question)"}}
 

@@ -132,7 +132,7 @@ class StudentSeed:
     def gen_seed(self, source_content: str) -> Tuple[str, str]:
         trials = 0
         output = ""
-        while trials < 4:
+        while trials < 10:
             output = self._llm.query([{"role": "system", "content": self._seed_prompt},
                                       {"role": "user", "content": f"```\n{source_content}\n```\nOUTPUT: "}])
             try:
