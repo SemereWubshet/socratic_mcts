@@ -517,5 +517,8 @@ if __name__ == "__main__":
             str(action_vfn_model_dir),
             current_policy_path,
             policy_model_dir,
-            base_model="microsoft/Phi-4-mini-instruct" if args.base_model else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+            base_model=(
+                "microsoft/Phi-4-mini-instruct" if args.base_model == "phi4"
+                else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+            )
         )
