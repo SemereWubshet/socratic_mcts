@@ -12,7 +12,7 @@ from ollama import Client
 from peft import LoraConfig, PeftModel, get_peft_model
 from torch.multiprocessing import Process
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, \
-    AutoModelForSequenceClassification
+    AutoModelForSequenceClassification, BitsAndBytesConfig
 from trl import GRPOConfig, GRPOTrainer
 
 from agents import Teacher, OllamaAgent, LLM
@@ -173,8 +173,9 @@ class Phi4(LLM):
         self._model_name = base_model
         self.device = torch.device(device) if device is not None else None
         self.max_length = max_length
+        quantization_config = BitsAndBytesConfig(load_in_4bit=True, llm_int4_threshold=200.0)
         self.model = AutoModelForCausalLM.from_pretrained(
-            self._model_name, torch_dtype=torch.float32, trust_remote_code=True, load_in_4bit=True
+            self._model_name, torch_dtype=torch.float32, trust_remote_code=True, quantization_config=quantization_config
         )
         if adapter_path is not None:
             self.model = PeftModel.from_pretrained(self.model, adapter_path)
@@ -346,8 +347,9 @@ def policy_train(
         # deepspeed=deepspeed_config_path,
     )
 
+    quantization_config = BitsAndBytesConfig(load_in_4bit=True, llm_int4_threshold=200.0)
     model = AutoModelForCausalLM.from_pretrained(
-        base_model, torch_dtype=torch.float32, trust_remote_code=True, load_in_4bit=True
+        base_model, torch_dtype=torch.float32, trust_remote_code=True, quantization_config=quantization_config
     )
 
     lora_config = LoraConfig(
