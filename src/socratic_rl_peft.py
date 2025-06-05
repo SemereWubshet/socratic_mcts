@@ -351,7 +351,7 @@ def policy_train(
     )
 
     lora_config = LoraConfig(
-        r=16,
+        r=8,
         lora_alpha=32,
         lora_dropout=0.05,
         bias="none",
