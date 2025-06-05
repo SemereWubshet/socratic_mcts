@@ -325,7 +325,7 @@ def policy_train(
         temperature=1.2,  # lower to reduce randomness
         max_prompt_length=880,  # allow richer context
         max_completion_length=128,  # generate more thoughtful responses
-        num_generations=4,  # increase diversity
+        num_generations=2,  # increase diversity
         num_train_epochs=1,  # train longer
         gradient_accumulation_steps=4,
         gradient_checkpointing=False,
