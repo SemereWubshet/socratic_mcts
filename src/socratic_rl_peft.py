@@ -251,6 +251,7 @@ def rollout(
     )
     output_path.write_text(interactions_dataset.model_dump_json(indent=4))
 
+
 def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pathlib.Path, device: str) -> None:
     torch.cuda.memory._record_memory_history(max_entries=100000)
 
@@ -356,21 +357,21 @@ def policy_train(
     model = AutoModelForCausalLM.from_pretrained(
         base_model, torch_dtype=torch.float16, trust_remote_code=True
     )
+
+    lora_config = LoraConfig(
+        r=16,
+        lora_alpha=32,
+        lora_dropout=0.05,
+        bias="none",
+        # target_modules=["q_proj", "o_proj", "k_proj", "v_proj", "gate_proj", "up_proj", "down_proj"],
+        task_type="CAUSAL_LM",
+    )
+
     if policy_path is not None:
         print(f"Loading previous PEFT weights from {policy_path}")
-        model = PeftModel.from_pretrained(model, policy_path, is_trainable=True)
+        model = PeftModel.from_pretrained(model, policy_path, config=lora_config, is_trainable=True)
     else:
         print("No previous adapter found — starting fresh.")
-        print("*")
-        lora_config = LoraConfig(
-            r=16,
-            lora_alpha=32,
-            lora_dropout=0.05,
-            bias="none",
-            # target_modules=["q_proj", "o_proj", "k_proj", "v_proj", "gate_proj", "up_proj", "down_proj"],
-            task_type="CAUSAL_LM",
-        )
-
         model = get_peft_model(model, lora_config)
         model.train()
 
