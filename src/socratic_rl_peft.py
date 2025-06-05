@@ -353,11 +353,11 @@ def policy_train(
     )
 
     lora_config = LoraConfig(
-        r=16,
+        r=8,
         lora_alpha=32,
         lora_dropout=0.05,
         bias="none",
-        target_modules=["o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules="all-linear",  # ["o_proj", "gate_proj", "up_proj", "down_proj"],
         task_type="CAUSAL_LM",
     )
 
