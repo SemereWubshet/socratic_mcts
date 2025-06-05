@@ -75,7 +75,7 @@ class OllamaAgent(LLM):
         except httpx.ConnectError as e:
             raise ValueError("Unable to connect to Ollama server. Check server's address.", e)
 
-        available_models = [m["name"] for m in models["models"]]
+        available_models = [m.model for m in models["models"]]
 
         if self._model not in available_models:
             try:

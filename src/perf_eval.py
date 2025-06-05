@@ -22,7 +22,15 @@ VISUAL_SETTINGS = {
     "mistral-small3.1:24b": {
         "color": Category10[10][1],
         "display_name": "MistralSmall 3.1"
-    }
+    },
+    "llama3.3:70b": {
+        "color": Category10[10][2],
+        "display_name": "Llama3.3"
+    },
+    "gemma3:27b": {
+        "color": Category10[10][3],
+        "display_name": "Gemma 3"
+    },
 }
 
 

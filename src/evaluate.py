@@ -1,4 +1,5 @@
 import argparse
+import os
 import pathlib
 import random
 import shutil
@@ -27,6 +28,8 @@ def resolve_llm(model: Tuple[str, str], clients: Dict[str, Union[Client, OpenAI]
         llm = OpenAIAgent(model, client, temperature=0.15)
     elif backend == "ollama":
         llm = OllamaAgent(model, client, temperature=0.15, num_ctx=8192)
+    elif backend == "google":
+        llm = OpenAIAgent(model, client, temperature=0.15)
     else:
         raise ValueError(f"Backend {backend} is not supported")
 
@@ -191,7 +194,14 @@ if __name__ == "__main__":
     parser.add_argument("--use-cache", action="store_true", help="Don't run subprocess if output files exist")
     args = parser.parse_args()
 
-    clients = {"openai": OpenAI(), "ollama": Client(args.ollama_client)}
+    clients = {
+        "openai": OpenAI(),
+        "ollama": Client(args.ollama_client),
+        "google": OpenAI(
+            api_key=os.getenv("GEMINI_API_KEY"),
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
+        )
+    }
 
     seed_llm = resolve_llm(args.seed_llm, clients)
     student_llm = resolve_llm(args.student_llm, clients)
@@ -225,9 +235,11 @@ if __name__ == "__main__":
 
     for teacher in tqdm([
         Teacher(resolve_llm(("ollama", "mistral-small3.1:24b"), clients)),
-        # Teacher(resolve_llm(("ollama", "llama3.3:70b"), clients)),
-        # Teacher(resolve_llm(("openai", "gpt-4o"), clients)),
+        Teacher(resolve_llm(("ollama", "llama3.3:70b"), clients)),
+        Teacher(resolve_llm(("ollama", "gemma3:27b"), clients)),
         Socratic(resolve_llm(("ollama", "eurecom-ds/phi-3-mini-4k-socratic"), clients)),
+        Teacher(resolve_llm(("openai", "gpt-4o"), clients)),
+        Teacher(resolve_llm(("google", "models/learnlm-2.0-flash-experimental"), clients)),
     ], desc="Teacher evaluation"):
         for max_interactions in tqdm([2, 4, 8, 16], desc="Max interactions"):
             teacher_model = teacher.model_name()
