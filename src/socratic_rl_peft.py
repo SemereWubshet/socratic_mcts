@@ -367,7 +367,7 @@ def policy_train(
             lora_alpha=32,
             lora_dropout=0.05,
             bias="none",
-            target_modules=["q_proj", "v_proj"],
+            # target_modules=["q_proj", "o_proj", "k_proj", "v_proj", "gate_proj", "up_proj", "down_proj"],
             task_type="CAUSAL_LM",
         )
 
@@ -515,5 +515,6 @@ if __name__ == "__main__":
             policy_checkpoints,
             str(action_vfn_model_dir),
             current_policy_path,
-            policy_model_dir
+            policy_model_dir,
+            base_model="microsoft/Phi-4-mini-instruct" if args.base_model else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
         )
