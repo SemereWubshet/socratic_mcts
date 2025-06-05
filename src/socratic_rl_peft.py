@@ -236,8 +236,6 @@ def rollout(
         ollama_client: str,
         max_interactions: int
 ) -> None:
-    torch.cuda.memory._record_memory_history(max_entries=100000)
-
     nemo = OllamaAgent(model="mistral-small3.1:24b", client=Client(ollama_client))
     seed_dataset = SeedDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
 
@@ -253,8 +251,6 @@ def rollout(
 
 
 def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pathlib.Path, device: str) -> None:
-    torch.cuda.memory._record_memory_history(max_entries=100000)
-
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
     action_value_fn = ActionValueFn(action_vf_path, max_length=768, gpu=device)
 
@@ -290,8 +286,6 @@ def vf_train(
         action_value_fn_path: str,
         vf_output_path: pathlib.Path
 ) -> None:
-    torch.cuda.memory._record_memory_history(max_entries=100000)
-
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
     training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5,
                                       gradient_checkpointing=True)
@@ -309,8 +303,6 @@ def policy_train(
         output_dir: pathlib.Path,
         base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 ) -> None:
-    torch.cuda.memory._record_memory_history(max_entries=100000)
-
     # Load dataset
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
     dataset = defaultdict(list)
