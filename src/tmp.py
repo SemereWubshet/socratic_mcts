@@ -1,7 +1,13 @@
+import argparse
+
 from socratic_rl_peft import Phi4
 
 if __name__ == "__main__":
-    s = Phi4(adapter_path="/home/gatti/test-2/train/iteration_0/policy_fn/", device="cuda:0")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--id", type=int, required=True)
+    args = parser.parse_args()
+
+    s = Phi4(adapter_path=f"/home/gatti/test-{args.id}/train/iteration_0/policy_fn/", device="cuda:0")
 
     chat = [
         {"role": "user", "content": "What is the answer to life the universe and everything?"},
