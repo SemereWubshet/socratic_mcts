@@ -367,6 +367,7 @@ def policy_train(
         model = get_peft_model(model, lora_config)
         model.train()
 
+    model.print_trainable_parameters()
     torch.cuda.empty_cache()
     print(torch.cuda.memory_summary())
 
