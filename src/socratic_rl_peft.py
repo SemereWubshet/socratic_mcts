@@ -174,7 +174,7 @@ class Phi4(LLM):
         self.device = torch.device(device) if device is not None else None
         self.max_length = max_length
         self.model = AutoModelForCausalLM.from_pretrained(
-            self._model_name, torch_dtype=torch.float16, trust_remote_code=True
+            self._model_name, torch_dtype=torch.float16, trust_remote_code=True, load_in_4bit=True
         )
         if adapter_path is not None:
             self.model = PeftModel.from_pretrained(self.model, adapter_path)
@@ -347,7 +347,7 @@ def policy_train(
     )
 
     model = AutoModelForCausalLM.from_pretrained(
-        base_model, torch_dtype=torch.float16, trust_remote_code=True
+        base_model, torch_dtype=torch.float16, trust_remote_code=True, load_in_4bit=True
     )
 
     lora_config = LoraConfig(
