@@ -249,7 +249,8 @@ def rollout(
         seed_dataset, nemo, SimpleTeacher(model), max_interactions=max_interactions
     )
     output_path.write_text(interactions_dataset.model_dump_json(indent=4))
-
+    torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_rollout.pkl")
+    torch.cuda.memory._record_memory_history(enabled=None)
 
 def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pathlib.Path, device: str) -> None:
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
@@ -279,7 +280,8 @@ def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pat
     hf_dataset = Dataset.from_dict(dataset)
     tokenized_dataset = hf_dataset.map(action_value_fn.batch_tokenize, batched=True, batch_size=8).shuffle()
     tokenized_dataset.save_to_disk(output_path)
-
+    torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_vf_rollout.pkl")
+    torch.cuda.memory._record_memory_history(enabled=None)
 
 def vf_train(
         dataset_path: pathlib.Path,
@@ -294,7 +296,8 @@ def vf_train(
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
     trainer.train()
     action_value_fn.save(vf_output_path)
-
+    torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_vf_train.pkl")
+    torch.cuda.memory._record_memory_history(enabled=None)
 
 def policy_train(
         dataset_path: pathlib.Path,
@@ -494,7 +497,7 @@ if __name__ == "__main__":
 
                 print()
                 print("#### VF training")
-                p = Process(
+                p = Process(    
                     target=vf_train,
                     args=(dataset_path, value_checkpoints / f"it_{j}", str(current_vf_step_path), vf_target_path)
                 )
