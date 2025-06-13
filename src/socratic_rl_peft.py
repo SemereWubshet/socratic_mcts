@@ -331,7 +331,7 @@ def policy_train(
         num_generations=2,  # increase diversity
         num_train_epochs=1,  # train longer
         gradient_accumulation_steps=4,
-        gradient_checkpointing=False,
+        gradient_checkpointing=True, # <-- was False, now True to reduce memory
         save_strategy="epoch",
         logging_steps=50,
         evaluation_strategy="no",  # consider "epoch" if val set is added
@@ -352,7 +352,7 @@ def policy_train(
 
     quantization_config = BitsAndBytesConfig(load_in_4bit=True, llm_int4_threshold=200.0)
     model = AutoModelForCausalLM.from_pretrained(
-        base_model, torch_dtype=torch.float32, trust_remote_code=True, quantization_config=quantization_config
+        base_model, torch_dtype=torch.float16, trust_remote_code=True, quantization_config=quantization_config # <-- changed from float32
     )
 
     lora_config = LoraConfig(
