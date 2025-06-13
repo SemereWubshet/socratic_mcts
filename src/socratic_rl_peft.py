@@ -23,7 +23,7 @@ from rollout import SeedDataset, gen_seeds, InteractionDataset, gen_teacher_stud
 
 class ActionValueFn:
 
-    def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None, in_training: bool = False):
+    def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None):
         self._max_length = max_length
         self._base_model = base_model
         self.device = torch.device(gpu) if gpu is not None else None
@@ -39,13 +39,6 @@ class ActionValueFn:
         if self.device is not None:
             self.model = self.model.to(self.device)
 
-        if in_training:
-            self.model.train()
-            for param in self.model.parameters():
-                param.requires_grad = True
-        else:
-            self.model.eval()
-
     def __call__(self, history: List[Dict[str, str]]) -> float:
         raw_prompt = self.tokenizer.apply_chat_template(history, tokenize=False)
         tokenized = self.tokenizer(
@@ -60,8 +53,10 @@ class ActionValueFn:
             inputs["input_ids"] = inputs["input_ids"].to(self.device)
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
-        logits = self.model(**inputs).logits
-        return logits.squeeze().item()
+        with torch.no_grad():
+            value = float(self.model(**inputs).logits)
+
+        return value
 
     def batch_tokenize(self, dataset: Dict[str, List[Dict[str, str]]]) -> Dict[str, List[str]]:
         raw_texts = self.tokenizer.apply_chat_template(dataset["history"], tokenize=False)
@@ -254,8 +249,7 @@ def rollout(
         seed_dataset, nemo, SimpleTeacher(model), max_interactions=max_interactions
     )
     output_path.write_text(interactions_dataset.model_dump_json(indent=4))
-    torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_rollout.pkl")
-    torch.cuda.memory._record_memory_history(enabled=None)
+
 
 def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pathlib.Path, device: str) -> None:
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
@@ -285,8 +279,7 @@ def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pat
     hf_dataset = Dataset.from_dict(dataset)
     tokenized_dataset = hf_dataset.map(action_value_fn.batch_tokenize, batched=True, batch_size=8).shuffle()
     tokenized_dataset.save_to_disk(output_path)
-    torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_vf_rollout.pkl")
-    torch.cuda.memory._record_memory_history(enabled=None)
+
 
 def vf_train(
         dataset_path: pathlib.Path,
@@ -301,8 +294,7 @@ def vf_train(
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
     trainer.train()
     action_value_fn.save(vf_output_path)
-    torch.cuda.memory._dump_snapshot("/homes/mediouni/sources/socratic_mcts/pkl_files/memory_profile_vf_train.pkl")
-    torch.cuda.memory._record_memory_history(enabled=None)
+
 
 def policy_train(
         dataset_path: pathlib.Path,
@@ -312,10 +304,7 @@ def policy_train(
         output_dir: pathlib.Path,
         base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 ) -> None:
-    import gc
-    from transformers import TrainingArguments
-    from peft import get_peft_model
-
+    # Load dataset
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
     dataset = defaultdict(list)
     for item in evaluations_dataset.root:
@@ -325,35 +314,42 @@ def policy_train(
         dataset["prompt"].extend(trajectory)
     hf_dataset = Dataset.from_dict(dataset)
 
-    rwd_fn = ActionValueFn(action_value_fn_path, max_length=768, in_training=True)
+    # Define reward model
+    rwd_fn = ActionValueFn(action_value_fn_path, max_length=768)
 
+    # GRPO config
     training_args = GRPOConfig(
         output_dir=policy_checkpoints,
-        learning_rate=5e-6,
+        learning_rate=5e-6,  # higher LR for faster adaptation if LoRA is used
         per_device_train_batch_size=args.train_batch_size,
-        temperature=1.2,
-        max_prompt_length=768,
-        max_completion_length=128,
-        num_generations=1,
-        num_train_epochs=1,
-        gradient_accumulation_steps=2,
-        gradient_checkpointing=True,
-        fp16=True,
+        temperature=1.2,  # lower to reduce randomness
+        max_prompt_length=880,  # allow richer context
+        max_completion_length=128,  # generate more thoughtful responses
+        num_generations=2,  # increase diversity
+        num_train_epochs=1,  # train longer
+        gradient_accumulation_steps=4,
+        gradient_checkpointing=False,
         save_strategy="epoch",
         logging_steps=50,
-        evaluation_strategy="no",
+        evaluation_strategy="no",  # consider "epoch" if val set is added
         warmup_steps=100,
         lr_scheduler_type="linear",
-        report_to="none",
+        report_to="none",  # add "wandb" or "tensorboard" if needed
+        # learning_rate=1e-6,
+        # num_generations=2,
+        # per_device_train_batch_size=1,
+        # temperature=1.7,
+        # max_prompt_length=16,
+        # gradient_accumulation_steps=1,
+        # max_completion_length=8,
+        # num_train_epochs=1,
+        # gradient_checkpointing=True,
+        # deepspeed=deepspeed_config_path,
     )
 
     quantization_config = BitsAndBytesConfig(load_in_4bit=True, llm_int4_threshold=200.0)
-
     model = AutoModelForCausalLM.from_pretrained(
-        base_model,
-        torch_dtype=torch.float16,
-        trust_remote_code=True,
-        quantization_config=quantization_config
+        base_model, torch_dtype=torch.float32, trust_remote_code=True, quantization_config=quantization_config
     )
 
     lora_config = LoraConfig(
@@ -361,7 +357,7 @@ def policy_train(
         lora_alpha=32,
         lora_dropout=0.05,
         bias="none",
-        target_modules="all-linear",
+        target_modules="all-linear",  # ["o_proj", "gate_proj", "up_proj", "down_proj"],
         task_type="CAUSAL_LM",
     )
 
@@ -371,14 +367,13 @@ def policy_train(
     else:
         print("No previous adapter found — starting fresh.")
         model = get_peft_model(model, lora_config)
-
-    model.train()
-    for param in model.parameters():
-        param.requires_grad = True
+        model.train()
 
     model.print_trainable_parameters()
-    gc.collect(); torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
+    print(torch.cuda.memory_summary())
 
+    # Train the model with GRPO
     trainer = GRPOTrainer(
         args=training_args,
         model=model,
@@ -386,12 +381,13 @@ def policy_train(
         reward_processing_classes=rwd_fn.tokenizer,
         train_dataset=hf_dataset,
     )
-
+    torch.cuda.empty_cache()
     trainer.train()
-    model.save_pretrained(str(output_dir))
 
+    # Save only the LoRA adapter
+    model.save_pretrained(str(output_dir))
     del trainer, model, rwd_fn
-    gc.collect(); torch.cuda.empty_cache()
+    torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
@@ -498,7 +494,7 @@ if __name__ == "__main__":
 
                 print()
                 print("#### VF training")
-                p = Process(    
+                p = Process(
                     target=vf_train,
                     args=(dataset_path, value_checkpoints / f"it_{j}", str(current_vf_step_path), vf_target_path)
                 )
