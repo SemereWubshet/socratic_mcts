@@ -23,7 +23,7 @@ from rollout import SeedDataset, gen_seeds, InteractionDataset, gen_teacher_stud
 
 class ActionValueFn:
 
-    def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None):
+    def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None, in_training: bool = False):
         self._max_length = max_length
         self._base_model = base_model
         self.device = torch.device(gpu) if gpu is not None else None
@@ -39,6 +39,13 @@ class ActionValueFn:
         if self.device is not None:
             self.model = self.model.to(self.device)
 
+        if in_training:
+            self.model.train()
+            for param in self.model.parameters():
+                param.requires_grad = True
+        else:
+            self.model.eval()
+
     def __call__(self, history: List[Dict[str, str]]) -> float:
         raw_prompt = self.tokenizer.apply_chat_template(history, tokenize=False)
         tokenized = self.tokenizer(
@@ -53,10 +60,8 @@ class ActionValueFn:
             inputs["input_ids"] = inputs["input_ids"].to(self.device)
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
-        with torch.no_grad():
-            value = float(self.model(**inputs).logits)
-
-        return value
+        logits = self.model(**inputs).logits
+        return logits.squeeze().item()
 
     def batch_tokenize(self, dataset: Dict[str, List[Dict[str, str]]]) -> Dict[str, List[str]]:
         raw_texts = self.tokenizer.apply_chat_template(dataset["history"], tokenize=False)
@@ -307,7 +312,10 @@ def policy_train(
         output_dir: pathlib.Path,
         base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
 ) -> None:
-    # Load dataset
+    import gc
+    from transformers import TrainingArguments
+    from peft import get_peft_model
+
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
     dataset = defaultdict(list)
     for item in evaluations_dataset.root:
@@ -317,42 +325,35 @@ def policy_train(
         dataset["prompt"].extend(trajectory)
     hf_dataset = Dataset.from_dict(dataset)
 
-    # Define reward model
-    rwd_fn = ActionValueFn(action_value_fn_path, max_length=768)
+    rwd_fn = ActionValueFn(action_value_fn_path, max_length=768, in_training=True)
 
-    # GRPO config
     training_args = GRPOConfig(
         output_dir=policy_checkpoints,
-        learning_rate=5e-6,  # higher LR for faster adaptation if LoRA is used
+        learning_rate=5e-6,
         per_device_train_batch_size=args.train_batch_size,
-        temperature=1.2,  # lower to reduce randomness
-        max_prompt_length=880,  # allow richer context
-        max_completion_length=128,  # generate more thoughtful responses
-        num_generations=2,  # increase diversity
-        num_train_epochs=1,  # train longer
-        gradient_accumulation_steps=4,
-        gradient_checkpointing=True, # <-- was False, now True to reduce memory
+        temperature=1.2,
+        max_prompt_length=768,
+        max_completion_length=128,
+        num_generations=1,
+        num_train_epochs=1,
+        gradient_accumulation_steps=2,
+        gradient_checkpointing=True,
+        fp16=True,
         save_strategy="epoch",
         logging_steps=50,
-        evaluation_strategy="no",  # consider "epoch" if val set is added
+        evaluation_strategy="no",
         warmup_steps=100,
         lr_scheduler_type="linear",
-        report_to="none",  # add "wandb" or "tensorboard" if needed
-        # learning_rate=1e-6,
-        # num_generations=2,
-        # per_device_train_batch_size=1,
-        # temperature=1.7,
-        # max_prompt_length=16,
-        # gradient_accumulation_steps=1,
-        # max_completion_length=8,
-        # num_train_epochs=1,
-        # gradient_checkpointing=True,
-        # deepspeed=deepspeed_config_path,
+        report_to="none",
     )
 
     quantization_config = BitsAndBytesConfig(load_in_4bit=True, llm_int4_threshold=200.0)
+
     model = AutoModelForCausalLM.from_pretrained(
-        base_model, torch_dtype=torch.float16, trust_remote_code=True, quantization_config=quantization_config # <-- changed from float32
+        base_model,
+        torch_dtype=torch.float16,
+        trust_remote_code=True,
+        quantization_config=quantization_config
     )
 
     lora_config = LoraConfig(
@@ -360,7 +361,7 @@ def policy_train(
         lora_alpha=32,
         lora_dropout=0.05,
         bias="none",
-        target_modules="all-linear",  # ["o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules="all-linear",
         task_type="CAUSAL_LM",
     )
 
@@ -370,13 +371,14 @@ def policy_train(
     else:
         print("No previous adapter found — starting fresh.")
         model = get_peft_model(model, lora_config)
-        model.train()
+
+    model.train()
+    for param in model.parameters():
+        param.requires_grad = True
 
     model.print_trainable_parameters()
-    torch.cuda.empty_cache()
-    print(torch.cuda.memory_summary())
+    gc.collect(); torch.cuda.empty_cache()
 
-    # Train the model with GRPO
     trainer = GRPOTrainer(
         args=training_args,
         model=model,
@@ -384,13 +386,12 @@ def policy_train(
         reward_processing_classes=rwd_fn.tokenizer,
         train_dataset=hf_dataset,
     )
-    torch.cuda.empty_cache()
-    trainer.train()
 
-    # Save only the LoRA adapter
+    trainer.train()
     model.save_pretrained(str(output_dir))
+
     del trainer, model, rwd_fn
-    torch.cuda.empty_cache()
+    gc.collect(); torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":
