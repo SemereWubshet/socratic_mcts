@@ -326,7 +326,7 @@ def policy_train(
         max_prompt_length=880,  # allow richer context
         max_completion_length=128,  # generate more thoughtful responses
         num_generations=4,  # increase diversity
-        num_train_epochs=1,  # train longer
+        num_train_epochs=1,  # train longe
         gradient_accumulation_steps=4,
         gradient_checkpointing=False,
         save_strategy="epoch",
