@@ -52,8 +52,8 @@ Respond with a **valid JSON object**, using this exact format:
 - Do **not** include any text before or after the JSON object.
 - Return **only** the JSON object — nothing else.
 
-❌ Invalid: `{"feedback": "...""assessment": true}` ← missing comma
-✅ Valid:   `{"feedback": "...", "assessment": true}`
+Invalid: `{"feedback": "...""assessment": true}` ← missing comma
+Valid:   `{"feedback": "...", "assessment": true}`
 
 ---
 
