@@ -422,7 +422,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    mp.set_start_method('spawn')
+    #mp.set_start_method('spawn')
 
     wikipedia = load_dataset("wikimedia/wikipedia", "20231101.simple")
 
