@@ -382,6 +382,7 @@ def policy_train(
         train_dataset=hf_dataset,
     )
     torch.cuda.empty_cache()
+    print(torch.cuda.memory_summary(device=None, abbreviated=True))
     trainer.train()
 
     # Save only the LoRA adapter
