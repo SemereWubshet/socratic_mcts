@@ -391,6 +391,12 @@ def policy_train(
 
 
 if __name__ == "__main__":
+    import torch.multiprocessing as mp
+
+    try:
+        mp.set_start_method('spawn')
+    except RuntimeError:
+        pass  # start method already set, safe to ignore
     parser = argparse.ArgumentParser(
         prog="FULL RL", description="Train a socratic llm through RL."
     )
