@@ -108,54 +108,24 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
 
-class SmolLM(LLM):
-    SYSTEM_PROMPT = ("You are a Socratic tutor. Use the following principles in responding to students:\n"
-                     "  - Ask thought-provoking, open-ended questions that challenge students' preconceptions and "
-                     "encourage them to engage in deeper reflection and critical thinking.\n"
-                     "  - Facilitate open and respectful dialogue among students, creating an environment where diverse"
-                     " viewpoints are valued and students feel comfortable sharing their ideas.\n"
-                     "  - Actively listen to students' responses, paying careful attention to their underlying thought"
-                     " processes and making a genuine effort to understand their perspectives.\n"
-                     "  - Guide students in their exploration of topics by encouraging them to discover answers "
-                     "independently, rather than providing direct answers, to enhance their reasoning and analytical "
-                     "skills.\n"
-                     "  - Promote critical thinking by encouraging students to question assumptions, evaluate "
-                     "evidence, and consider alternative viewpoints in order to arrive at well-reasoned conclusions.\n"
-                     "  - Demonstrate humility by acknowledging your own limitations and uncertainties, modeling a "
-                     "growth mindset and exemplifying the value of lifelong learning.\n"
-                     "  - Keep interactions short, limiting yourself to one question at a time and to concise "
-                     "explanations.")
+class Qwen(LLM):
 
-    def __init__(self,
-                 base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct",
-                 adapter_path: Optional[pathlib.Path] = None,
-                 max_length: int = 1024,
-                 device: Optional[str] = None):
-        self._model_name = base_model
-        self.device = torch.device(device) if device is not None else None
-        self.max_length = max_length
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self._model_name, torch_dtype=torch.float16, trust_remote_code=True
+    def __init__(self, base_model: str, max_length: int = 1024):
+        self._base_model = base_model
+        self.model, self.tokenizer = unsloth.FastLanguageModel.from_pretrained(
+            model_name=base_model,
+            max_seq_length=max_length,
+            load_in_4bit=False,
+            load_in_8bit=False
         )
-        if adapter_path is not None:
-            self.model = PeftModel.from_pretrained(self.model, adapter_path)
+        unsloth.FastLanguageModel.for_inference(self.model)
 
-        if self.device is not None:
-            self.model = self.model.to(self.device)
-
-        self.tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-        self.tokenizer.chat_template = (
-            f"<|im_start|>system\n{self.SYSTEM_PROMPT}<|im_end|>\n"
-            "{% for message in messages %}"
-            "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
-            "{% endfor %}"
-            "{% if add_generation_prompt %}"
-            "{{ '<|im_start|>assistant\n' }}"
-            "{% endif %}")
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+        self.max_length = max_length
 
     def query(self, messages: List[Dict[str, str]]) -> str:
-        raw_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        raw_prompt = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
+        )
         tokenized = self.tokenizer(
             raw_prompt, return_tensors="pt", truncation=True, max_length=self.max_length
         )
@@ -163,81 +133,6 @@ class SmolLM(LLM):
             "input_ids": tokenized.input_ids,
             "attention_mask": tokenized.attention_mask
         }
-
-        if self.device is not None:
-            inputs["input_ids"] = inputs["input_ids"].to(self.device)
-            inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
-
-        output = self.model.generate(
-            **inputs, max_new_tokens=128, do_sample=True, temperature=0.15, pad_token_id=self.tokenizer.eos_token_id
-        )
-        response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
-        return response
-
-    def healthcheck(self) -> None:
-        pass
-
-    @property
-    def model_name(self) -> str:
-        return self._model_name
-
-    def save(self, path: pathlib.Path) -> None:
-        self.model.save_pretrained(path)
-        self.tokenizer.save_pretrained(path)
-
-
-class Phi4(LLM):
-    SYSTEM_PROMPT = ("You are a Socratic tutor. Use the following principles in responding to students:\n"
-                     "  - Ask thought-provoking, open-ended questions that challenge students' preconceptions and "
-                     "encourage them to engage in deeper reflection and critical thinking.\n"
-                     "  - Facilitate open and respectful dialogue among students, creating an environment where diverse"
-                     " viewpoints are valued and students feel comfortable sharing their ideas.\n"
-                     "  - Actively listen to students' responses, paying careful attention to their underlying thought"
-                     " processes and making a genuine effort to understand their perspectives.\n"
-                     "  - Guide students in their exploration of topics by encouraging them to discover answers "
-                     "independently, rather than providing direct answers, to enhance their reasoning and analytical "
-                     "skills.\n"
-                     "  - Promote critical thinking by encouraging students to question assumptions, evaluate "
-                     "evidence, and consider alternative viewpoints in order to arrive at well-reasoned conclusions.\n"
-                     "  - Demonstrate humility by acknowledging your own limitations and uncertainties, modeling a "
-                     "growth mindset and exemplifying the value of lifelong learning.\n"
-                     "  - Keep interactions short, limiting yourself to one question at a time and to concise "
-                     "explanations.")
-
-    def __init__(self,
-                 base_model: str = "microsoft/Phi-4-mini-instruct",
-                 adapter_path: Optional[pathlib.Path] = None,
-                 max_length: int = 1024,
-                 device: Optional[str] = None):
-        self._model_name = base_model
-        self.device = torch.device(device) if device is not None else None
-        self.max_length = max_length
-        quantization_config = BitsAndBytesConfig(load_in_4bit=True, llm_int4_threshold=200.0)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            self._model_name, torch_dtype=torch.float32, trust_remote_code=True, quantization_config=quantization_config
-        )
-        if adapter_path is not None:
-            self.model = PeftModel.from_pretrained(self.model, adapter_path)
-
-        if self.device is not None:
-            self.model = self.model.to(self.device)
-
-        self.tokenizer = AutoTokenizer.from_pretrained(self._model_name)
-
-    def query(self, messages: List[Dict[str, str]]) -> str:
-        _messages = [{"role": "system", "content": self.SYSTEM_PROMPT.strip()}, ] + messages
-        raw_prompt = self.tokenizer.apply_chat_template(_messages, tokenize=False, add_generation_prompt=True)
-        tokenized = self.tokenizer(
-            raw_prompt, return_tensors="pt", truncation=True, max_length=self.max_length
-        )
-        inputs = {
-            "input_ids": tokenized.input_ids,
-            "attention_mask": tokenized.attention_mask
-        }
-
-        if self.device is not None:
-            inputs["input_ids"] = inputs["input_ids"].to(self.device)
-            inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         output = self.model.generate(
             **inputs, max_new_tokens=128, do_sample=True, temperature=0.15
@@ -250,7 +145,7 @@ class Phi4(LLM):
 
     @property
     def model_name(self) -> str:
-        return self._model_name
+        return f"Qwen3 ({self._base_model})"
 
     def save(self, path: pathlib.Path) -> None:
         self.model.save_pretrained(path)
@@ -269,20 +164,15 @@ class SimpleTeacher(Teacher):
 
 def rollout(
         dataset_path: pathlib.Path,
-        base_model: str,
         policy_path: Optional[pathlib.Path],
         output_path: pathlib.Path,
-        device: str,
         ollama_client: str,
         max_interactions: int
 ) -> None:
     nemo = OllamaAgent(model="mistral-small3.1:24b", client=Client(ollama_client))
     seed_dataset = SeedDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
 
-    if base_model == "phi4":
-        model = Phi4(adapter_path=policy_path, device=device)
-    else:
-        model = SmolLM(adapter_path=policy_path, device=device)
+    model = Qwen(base_model=policy_path)
 
     interactions_dataset = gen_teacher_student_interactions(
         seed_dataset, nemo, SimpleTeacher(model), max_interactions=max_interactions
@@ -567,7 +457,7 @@ if __name__ == "__main__":
 
     training_args = SFTConfig(
         max_seq_length=1024,
-        output_dir="/tmp",  # TODO: need path to this
+        output_dir=train_dir / "stf",
     )
     trainer = SFTTrainer(
         model,
@@ -591,7 +481,7 @@ if __name__ == "__main__":
         policy_checkpoints = train_it_dir / "policy_checkpoints"
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
-        current_policy_path = previous_iteration / "policy_fn" if i > 0 else None
+        current_policy_path = previous_iteration / "policy_fn" if i > 0 else train_dir / "stf"
         current_vf_path = previous_iteration / "action_value_fn" if i > 0 else "allenai/longformer-base-4096"
 
         if policy_model_dir.exists():
@@ -606,8 +496,14 @@ if __name__ == "__main__":
             print("#### Rolling out policy")
             p = Process(
                 target=rollout,
-                args=(seeds_path, args.base_model, current_policy_path, interactions_path, "cuda", args.ollama_client,
-                      args.max_interactions)
+                args=(
+                    seeds_path,
+                    args.base_model,
+                    current_policy_path,
+                    interactions_path,
+                    args.ollama_client,
+                    args.max_interactions
+                )
             )
             p.start()
             p.join()
