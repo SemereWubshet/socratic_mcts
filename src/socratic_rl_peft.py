@@ -510,6 +510,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--root-dir", required=True, type=pathlib.Path, help="Path where to store pipeline artifacts")
     parser.add_argument("--num-iterations", required=True, type=int, help="Number of training iterations")
+    parser.add_argument("--stf-dataset", required=pathlib.Path, type=int, help="Path to dataset to be used for STF")
     parser.add_argument(
         "--num-conversations", required=True, type=int, help="Number of training examples on each iteration"
     )
@@ -550,7 +551,7 @@ if __name__ == "__main__":
 
     print(f" -------------------- ------------------ starting STF -------------------- ------------------")
     tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
-    dataset = load_dataset("../datasets/stf_examples")
+    dataset = load_dataset("./datasets/stf_examples")
 
 
     def prepare_prompts(examples) -> None:
