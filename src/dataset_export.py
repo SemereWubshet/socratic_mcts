@@ -5,16 +5,23 @@ from datasets import Dataset
 from schemas import EvaluationDataset
 
 if __name__ == "__main__":
-    evaluation_dataset_path = Path("../datasets/evaluation/eval_16_mistral-small3.1_24b.json")
-    eval_dataset = EvaluationDataset.model_validate_json(evaluation_dataset_path.read_text())
+    input_dir = Path("../datasets/evaluation")
+    messages = []
 
-    output = {"messages": []}
-    for e in filter(lambda _e: _e.assessment, eval_dataset.evaluations):
-        formatted = []
-        for h in e.interaction.chat_history.root:
-            role = "user" if h.role == "Student" else "assistant"
-            formatted.append({"role": role, "content": h.content})
-        output["messages"].append(formatted)
+    for json_file in input_dir.glob("eval_*.json"):
+        eval_dataset = EvaluationDataset.model_validate_json(json_file.read_text())
 
-    dataset = Dataset.from_dict(output)
-    dataset.save_to_disk("../datasets/stf_examples")
+        for e in filter(lambda _e: _e.assessment, eval_dataset.evaluations):
+            formatted = []
+            for h in e.interaction.chat_history.root:
+                role = "user" if h.role == "Student" else "assistant"
+                formatted.append({"role": role, "content": h.content})
+            messages.append({"messages": formatted})
+
+    # Now build a single Dataset from all messages combined
+    dataset = Dataset.from_list(messages)
+
+    # Save the combined dataset
+    dataset.save_to_disk("../datasets/stf_examples_combined")
+
+    print(f"Processed {len(messages)} conversations from {len(list(input_dir.glob('eval_*.json')))} files.")
