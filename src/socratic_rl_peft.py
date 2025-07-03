@@ -551,7 +551,7 @@ if __name__ == "__main__":
 
     print(f" -------------------- ------------------ starting STF -------------------- ------------------")
     tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
-    dataset = load_dataset("./datasets/stf_examples")
+    dataset = load_dataset(args.stf_dataset)
 
 
     def prepare_prompts(examples) -> None:
