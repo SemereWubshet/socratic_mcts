@@ -548,6 +548,7 @@ if __name__ == "__main__":
         # full_finetuning=True, (see https://github.com/unslothai/unsloth/issues/2713)
         gpu_memory_utilization=0.7,  # Reduce if out of memory
     )
+    model.gradient_checkpointing_enable()  # https://github.com/huggingface/transformers/issues/30544
 
     print(f" -------------------- ------------------ starting STF -------------------- ------------------")
     tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
