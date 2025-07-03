@@ -9,7 +9,7 @@ if __name__ == "__main__":
     eval_dataset = EvaluationDataset.model_validate_json(evaluation_dataset_path.read_text())
 
     output = {"messages": []}
-    for e in filter(lambda _e: _e.assessment, eval_dataset.evaluations):
+    for e in filter(lambda _e: not _e.assessment, eval_dataset.evaluations):
         formatted = []
         for h in e.interaction.chat_history.root:
             role = "user" if h.role == "Student" else "assistant"
