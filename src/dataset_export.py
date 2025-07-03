@@ -17,6 +17,8 @@ if __name__ == "__main__":
             for h in hist:
                 role = "user" if h.role == "Student" else "assistant"
                 formatted.append({"role": role, "content": h.content})
+            # TODO: format https://huggingface.co/docs/trl/en/sft_trainer#dataset-format-support
+            # Example: https://huggingface.co/datasets/philschmid/dolly-15k-oai-style/viewer/default/train?views%5B%5D=train&row=2
             output.append({"prompt": formatted, "completion": {"role": "assistant", "content": answer.content}})
 
     dataset = Dataset.from_list(output)

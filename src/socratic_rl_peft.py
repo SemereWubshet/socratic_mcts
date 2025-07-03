@@ -577,7 +577,6 @@ if __name__ == "__main__":
     )
     trainer = SFTTrainer(
         model,
-        formatting_func=formatting_func,
         processing_class=tokenizer,
         train_dataset=dataset,
         args=training_args,
