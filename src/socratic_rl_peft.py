@@ -563,14 +563,9 @@ if __name__ == "__main__":
         return {"prompt": _input, "completion": target}
 
 
-    def formatting_func(example):
-        return f"{example['input']}{example['completion']}"
-
-
     dataset = dataset.map(prepare_prompts, batched=True)
 
     training_args = SFTConfig(
-        dataset_text_field="input",
         max_seq_length=1024,
         completion_only_loss=True,
         output_dir="/tmp",  # TODO: need path to this
