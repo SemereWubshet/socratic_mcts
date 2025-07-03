@@ -529,8 +529,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    mp.set_start_method('spawn')
-
     wikipedia = load_dataset("princeton-nlp/TextbookChapters")
 
     train_dir: pathlib.Path = args.root_dir / "train"

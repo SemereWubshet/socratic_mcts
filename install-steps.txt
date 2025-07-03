@@ -5,6 +5,6 @@ pip install --upgrade pip
 pip install packaging ninja wheel
 
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
-pip install flash_attn==2.6.3 "unsloth[cu124-ampere-torch251] @ git+https://github.com/unslothai/unsloth.git" --no-build-isolation
+pip install flash_attn==2.6.3 "unsloth[cu124-ampere-torch251] @ git+https://github.com/unslothai/unsloth.git"
 
-pip install pydantic scipy
+pip install pydantic scipy ollama openai
