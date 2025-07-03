@@ -560,7 +560,7 @@ if __name__ == "__main__":
             for c in examples["prompt"]
         ]
         target = [f"{a['content']}<|im_end|>\n" for a in examples["completion"]]
-        return {"prompt": _input, "completion": target}
+        return {"input": _input, "output": target}
 
 
     dataset = dataset.map(prepare_prompts, batched=True)
