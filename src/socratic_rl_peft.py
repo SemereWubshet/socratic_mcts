@@ -556,19 +556,16 @@ if __name__ == "__main__":
 
     def prepare_prompts(examples) -> None:
         _input = [
-            tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=True, enable_thinking=False)
-            for c in examples["prompt"]
+            tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=False, enable_thinking=False)
+            for c in examples["messages"]
         ]
-        target = [f"{a['content']}<|im_end|>\n" for a in examples["completion"]]
-        return {"input": _input, "output": target}
+        return {"text": _input}
 
 
     dataset = dataset.map(prepare_prompts, batched=True)
 
     training_args = SFTConfig(
-        dataset_text_field="input",
         max_seq_length=1024,
-        completion_only_loss=True,
         output_dir="/tmp",  # TODO: need path to this
     )
     trainer = SFTTrainer(
