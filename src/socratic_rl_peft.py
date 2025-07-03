@@ -563,6 +563,10 @@ if __name__ == "__main__":
         return {"prompt": _input, "completion": target}
 
 
+    def formatting_func(example):
+        return f"{example['input']}{example['completion']}"
+
+
     dataset = dataset.map(prepare_prompts, batched=True)
 
     training_args = SFTConfig(
@@ -573,6 +577,7 @@ if __name__ == "__main__":
     )
     trainer = SFTTrainer(
         model,
+        formatting_func=formatting_func,
         processing_class=tokenizer,
         train_dataset=dataset,
         args=training_args,
