@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
         for e in filter(lambda _e: _e.assessment, eval_dataset.evaluations):
             formatted = []
-            for h in e.interaction.chat_history.root:
+            for h in e.interaction.chat_history.root[:-1]:
                 role = "user" if h.role == "Student" else "assistant"
                 formatted.append({"role": role, "content": h.content})
             messages.append({"messages": formatted})
