@@ -544,7 +544,6 @@ if __name__ == "__main__":
         max_seq_length=1024,
         load_in_4bit=False,  # False for LoRA 16bit
         load_in_8bit=False,
-        fast_inference=True,  # Enable vLLM fast inference
         # full_finetuning=True, (see https://github.com/unslothai/unsloth/issues/2713)
         gpu_memory_utilization=0.7,  # Reduce if out of memory
     )
