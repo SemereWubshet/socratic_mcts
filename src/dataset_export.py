@@ -17,7 +17,7 @@ if __name__ == "__main__":
             for h in hist:
                 role = "user" if h.role == "Student" else "assistant"
                 formatted.append({"role": role, "content": h.content})
-            output.append({"prompt": formatted, "completion": [{"role": "assistant", "content": answer.content}]})
+            output.append({"prompt": formatted, "completion": {"role": "assistant", "content": answer.content}})
 
     dataset = Dataset.from_list(output)
     dataset.save_to_disk("../datasets/stf_examples")
