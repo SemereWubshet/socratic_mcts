@@ -1,0 +1,15 @@
+ollama==0.3.3
+openai
+bs4
+requests
+pydantic==2.10.0
+wikipedia
+google-generativeai
+datasets
+pydantic==2.10.0
+scikit-learn
+transformers[torch]==4.49.0
+torch
+trl[peft]==0.14.0
+deepspeed
+bitsandbytes==0.46.0

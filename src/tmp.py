@@ -1,10 +1,15 @@
 import abc
-from typing import List, TypeVar, Generic, Tuple, Optional, Generator, Type
+from typing import List, TypeVar, Generic, Tuple, Optional, Generator, Type, Dict
 
 import pydantic
 from datasets import load_dataset
 
+from agents import StudentSeed
+
 T = TypeVar('T', bound='Record')
+
+I = TypeVar('I')
+O = TypeVar('O')
 
 
 class Metadata(pydantic.BaseModel):
@@ -54,10 +59,27 @@ class Tracker(abc.ABC):
     pass
 
 
-class Stage(Generic[T], abc.ABC):
+class Emitter(Generic[O]):
+
+    def __init__(self, next_stage: 'Stage', tracker: Dict[str, int]):
+        self._next_stage = next_stage
+        self._tracker = tracker
+
+    def emit(self, sample: O) -> None:
+        self._next_stage.process(sample, self)
+
+    def add(self, name: str) -> None:
+        c = self._tracker.get(name, 0)
+        self._tracker[name] = c + 1
+
+
+class Stage(Generic[I, O], abc.ABC):
 
     @abc.abstractmethod
-    def process(self, sample: T, tracker: Tracker) -> None:
+    def process(self, sample: I, emitter: Emitter[O]) -> None:
+        ...
+
+    def cleanup(self, emitter: Emitter[O]) -> None:
         ...
 
 
@@ -97,13 +119,36 @@ class PrincetonChapters(Generic[T], DataSource[T]):
             i += 1
 
 
-# class GenSeed()
+class SeedStage(Stage[str, Seed]):
 
+    def __init__(self, seed: StudentSeed):
+        self._pool = []
+        self._seed = seed  # TODO: use interface
 
-class DumpStage(Stage[T, T]):
+    def process(self, sample: str, emitter: Emitter[List[Seed]]) -> None:
+        question, topics = self._seed.gen_seed(sample)
+        # TODO: interaction type
+        seed = Seed(source_content=sample, question=question, main_topics=topics, interaction_type=0)
+        self._pool.append(seed)
 
-    def process(self, sample: T, tracker: Tracker) -> None:
+    def cleanup(self, emitter: Emitter[List[Seed]]) -> None:
         pass
+
+
+class BufferStage(Stage[I, List[I]]):
+
+    def __init__(self):
+        self._buffer: List[I] = []
+
+    def process(self, sample: I, emitter: Emitter[I]) -> None:
+        self._buffer.append(sample)
+
+    def cleanup(self, emitter: Emitter[I]) -> None:
+        emitter.emit(self._buffer)
+        self._buffer.clear()
+
+
+# class GenSeed()
 
 
 class SocraticBench(Generic[T]):
@@ -136,8 +181,9 @@ if __name__ == "__main__":
     # API - selecting pipeline stages
     s = (SocraticBench()
          .from_data(PrincetonChapters(Record, num_conversations=10))
-         .with_stage(DumpStage())
-         .with_stage(DumpStage()))
+         # .with_stage(DumpStage())
+         # .with_stage(DumpStage())
+         )
     s.run()
 
     # API - fine control (simulating single chat)
