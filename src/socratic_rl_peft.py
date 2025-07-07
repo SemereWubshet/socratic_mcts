@@ -1,7 +1,11 @@
 import argparse
+import gc
+import json
 import math
 import pathlib
+import shutil
 from collections import defaultdict
+from multiprocessing import Process
 from typing import List, Dict, Optional
 
 import numpy as np
@@ -11,14 +15,13 @@ import unsloth
 from datasets import load_dataset, Dataset
 from ollama import Client
 from peft import LoraConfig, PeftModel, get_peft_model
-from torch.multiprocessing import Process
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, \
     AutoModelForSequenceClassification, BitsAndBytesConfig
 from trl import GRPOConfig, GRPOTrainer, SFTConfig, SFTTrainer
 
 from agents import Teacher, OllamaAgent, LLM
-from evaluate import gen_teacher_student_interactions, gen_seeds, evaluate
-from schemas import ChatHistory, SeedDataset, EvaluationDataset, InteractionDataset
+from evaluate import gen_teacher_student_interactions, gen_seeds
+from schemas import ChatHistory, SeedDataset, EvaluationDataset
 
 
 # https://huggingface.co/unsloth/Qwen3-4B-Base
@@ -112,13 +115,14 @@ class Qwen(LLM):
 
     def __init__(self, base_model: str, max_length: int = 1024):
         self._base_model = base_model
-        self.model, self.tokenizer = unsloth.FastLanguageModel.from_pretrained(
+        model, self.tokenizer = unsloth.FastLanguageModel.from_pretrained(
             model_name=base_model,
+            dtype=torch.bfloat16,
             max_seq_length=max_length,
-            load_in_4bit=False,
-            load_in_8bit=False
+            load_in_4bit=False,  # False for LoRA 16bit
+            load_in_8bit=False,
         )
-        unsloth.FastLanguageModel.for_inference(self.model)
+        self.model = unsloth.FastLanguageModel.for_inference(model)
 
         self.max_length = max_length
 
@@ -126,19 +130,13 @@ class Qwen(LLM):
         raw_prompt = self.tokenizer.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
         )
-        tokenized = self.tokenizer(
-            raw_prompt, return_tensors="pt", truncation=True, max_length=self.max_length
-        )
-        inputs = {
-            "input_ids": tokenized.input_ids,
-            "attention_mask": tokenized.attention_mask
-        }
-
-        output = self.model.generate(
+        inputs = self.tokenizer([raw_prompt], return_tensors="pt").to("cuda")
+        outputs = self.model.generate(
             **inputs, max_new_tokens=128, do_sample=True, temperature=0.15
         )
-        response = self.tokenizer.decode(output[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
-        return response
+        generation = outputs[0, len(inputs['input_ids'][0]):]
+        decoded = self.tokenizer.decode(generation, skip_special_tokens=True)
+        return decoded
 
     def healthcheck(self) -> None:
         pass
@@ -150,6 +148,11 @@ class Qwen(LLM):
     def save(self, path: pathlib.Path) -> None:
         self.model.save_pretrained(path)
         self.tokenizer.save_pretrained(path)
+
+    def unload(self) -> None:
+        del self.model
+        gc.collect()
+        torch.cuda.empty_cache()
 
 
 class SimpleTeacher(Teacher):
@@ -418,55 +421,81 @@ if __name__ == "__main__":
     )
     parser.add_argument("--train-batch-size", type=int, default=1, help="Batch size for training")
 
+    parser.add_argument("--clean", action="store_true", help="Clean root_dir if it exists")
     args = parser.parse_args()
 
-    wikipedia = load_dataset("princeton-nlp/TextbookChapters")
+    root_dir = pathlib.Path(args.root_dir)
+    root_dir.mkdir(exist_ok=True)
+    if args.clean:
+        for child in root_dir.iterdir():
+            if child.is_file():
+                child.unlink()
+            elif child.is_dir():
+                shutil.rmtree(child)
 
-    train_dir: pathlib.Path = args.root_dir / "train"
+    train_dir: pathlib.Path = root_dir / "train"
     train_dir.mkdir(exist_ok=True, parents=True)
 
     student = OllamaAgent(model="mistral-small3.1:24b", client=Client(args.ollama_client))
 
     judge = OllamaAgent(model="qwen3:32b", client=Client(args.ollama_client))
 
-    # https://docs.unsloth.ai/get-started/fine-tuning-guide#id-2.-choose-the-right-model--method
-    model, tokenizer = unsloth.FastLanguageModel.from_pretrained(
-        model_name="unsloth/Qwen3-4B-Base",
-        max_seq_length=1024,
-        load_in_4bit=False,  # False for LoRA 16bit
-        load_in_8bit=False,
-        # full_finetuning=True, (see https://github.com/unslothai/unsloth/issues/2713)
-        gpu_memory_utilization=0.7,  # Reduce if out of memory
-    )
-    model.gradient_checkpointing_enable()  # https://github.com/huggingface/transformers/issues/30544
+    stf_dir = train_dir / "stf"
 
-    print(f" -------------------- ------------------ starting STF -------------------- ------------------")
-    tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
-    dataset = Dataset.load_from_disk(args.stf_dataset)
+    if not stf_dir.exists():
+        print(f" -------------------- ------------------ starting STF -------------------- ------------------")
+        # https://docs.unsloth.ai/get-started/fine-tuning-guide#id-2.-choose-the-right-model--method
+        model, tokenizer = unsloth.FastLanguageModel.from_pretrained(
+            model_name="unsloth/Qwen3-4B",
+            max_seq_length=1024,
+            dtype=torch.bfloat16,
+            load_in_4bit=False,  # False for LoRA 16bit
+            load_in_8bit=False,
+            # full_finetuning=True,  # (see https://github.com/unslothai/unsloth/issues/2713)
+            gpu_memory_utilization=0.7,  # Reduce if out of memory
+        )
+
+        model = unsloth.FastLanguageModel.get_peft_model(
+            model,
+            r=128,
+            target_modules=[
+                "q_proj", "k_proj", "v_proj", "o_proj",
+                "gate_proj", "up_proj", "down_proj",
+            ],
+            lora_alpha=128 * 2,
+            use_gradient_checkpointing="unsloth",
+        )
+
+        model.gradient_checkpointing_enable()  # https://github.com/huggingface/transformers/issues/30544
+        tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
+        dataset = Dataset.load_from_disk(args.stf_dataset)
 
 
-    def prepare_prompts(examples) -> None:
-        _input = [
-            tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=False, enable_thinking=False)
-            for c in examples["messages"]
-        ]
-        return {"text": _input}
+        def prepare_prompts(examples) -> None:
+            _input = [
+                tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=False, enable_thinking=False)
+                for c in examples["messages"]
+            ]
+            return {"text": _input}
 
 
-    dataset = dataset.map(prepare_prompts, batched=True)
+        dataset = dataset.map(prepare_prompts, batched=True)
 
-    training_args = SFTConfig(
-        max_seq_length=1024,
-        output_dir=train_dir / "stf",
-    )
-    trainer = SFTTrainer(
-        model,
-        processing_class=tokenizer,
-        train_dataset=dataset,
-        args=training_args,
-    )
-    trainer.train()
+        training_args = SFTConfig(
+            max_seq_length=1024,
+            output_dir=stf_dir,
+        )
+        trainer = SFTTrainer(
+            model,
+            processing_class=tokenizer,
+            train_dataset=dataset,
+            args=training_args,
+        )
+        train_stats = trainer.train()
+        with open(train_dir / "train_stats.json", "w") as f:
+            json.dump(train_stats, f)
 
+    textbooks = load_dataset("princeton-nlp/TextbookChapters")
     for i in range(args.num_iterations):
         print(f" -------------------- ------------------ starting it {i} -------------------- ------------------")
         train_it_dir = train_dir / f"iteration_{i}"
@@ -488,7 +517,7 @@ if __name__ == "__main__":
             continue
 
         if not seeds_path.exists():
-            seed_dataset = gen_seeds(wikipedia, student, num_of_conversations=args.num_conversations)
+            seed_dataset = gen_seeds(textbooks, student, num_of_conversations=args.num_conversations)
             seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
 
         if not interactions_path.exists():
@@ -510,56 +539,56 @@ if __name__ == "__main__":
             assert p.exitcode == 0
             p.close()
 
-        if not evaluations_path.exists():
-            print()
-            print("#### Policy evaluation")
-            interactions_dataset = InteractionDataset.model_validate_json(interactions_path.read_text())
-            evaluations_dataset = evaluate(interactions_dataset, judge)
-            evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
-
-            print(f"\nAvg. perf. {i}: {evaluations_dataset.avg_performance()}\n", flush=True)
-
-        if not action_vfn_model_dir.exists():
-            for j in range(args.vf_training_it):
-                vf_training_path = train_it_dir / "vf_training"
-                current_vf_step_path = current_vf_path if j == 0 else vf_training_path / f"it_{j - 1}" / "value_fn"
-
-                vf_target_path = (
-                    vf_training_path / f"it_{j}" / "value_fn"
-                    if j < args.vf_training_it - 1 else action_vfn_model_dir
-                )
-
-                print()
-                print("#### VF rollout")
-                dataset_path = vf_training_path / f"it_{j}" / "dataset"
-                p = Process(target=vf_rollout, args=(evaluations_path, str(current_vf_step_path), dataset_path, "cuda"))
-                p.start()
-                p.join()
-                assert p.exitcode == 0
-                p.close()
-
-                print()
-                print("#### VF training")
-                p = Process(
-                    target=vf_train,
-                    args=(dataset_path, value_checkpoints / f"it_{j}", str(current_vf_step_path), vf_target_path)
-                )
-                p.start()
-                p.join()
-                assert p.exitcode == 0
-                p.close()
-
-        print()
-        print("#### Policy training")
-        print(f"current_policy_path={current_policy_path}")
-        policy_train(
-            evaluations_path,
-            policy_checkpoints,
-            str(action_vfn_model_dir),
-            current_policy_path,
-            policy_model_dir,
-            base_model=(
-                "microsoft/Phi-4-mini-instruct" if args.base_model == "phi4"
-                else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-            )
-        )
+    #     if not evaluations_path.exists():
+    #         print()
+    #         print("#### Policy evaluation")
+    #         interactions_dataset = InteractionDataset.model_validate_json(interactions_path.read_text())
+    #         evaluations_dataset = evaluate(interactions_dataset, judge)
+    #         evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
+    #
+    #         print(f"\nAvg. perf. {i}: {evaluations_dataset.avg_performance()}\n", flush=True)
+    #
+    #     if not action_vfn_model_dir.exists():
+    #         for j in range(args.vf_training_it):
+    #             vf_training_path = train_it_dir / "vf_training"
+    #             current_vf_step_path = current_vf_path if j == 0 else vf_training_path / f"it_{j - 1}" / "value_fn"
+    #
+    #             vf_target_path = (
+    #                 vf_training_path / f"it_{j}" / "value_fn"
+    #                 if j < args.vf_training_it - 1 else action_vfn_model_dir
+    #             )
+    #
+    #             print()
+    #             print("#### VF rollout")
+    #             dataset_path = vf_training_path / f"it_{j}" / "dataset"
+    #             p = Process(target=vf_rollout, args=(evaluations_path, str(current_vf_step_path), dataset_path, "cuda"))
+    #             p.start()
+    #             p.join()
+    #             assert p.exitcode == 0
+    #             p.close()
+    #
+    #             print()
+    #             print("#### VF training")
+    #             p = Process(
+    #                 target=vf_train,
+    #                 args=(dataset_path, value_checkpoints / f"it_{j}", str(current_vf_step_path), vf_target_path)
+    #             )
+    #             p.start()
+    #             p.join()
+    #             assert p.exitcode == 0
+    #             p.close()
+    #
+    #     print()
+    #     print("#### Policy training")
+    #     print(f"current_policy_path={current_policy_path}")
+    #     policy_train(
+    #         evaluations_path,
+    #         policy_checkpoints,
+    #         str(action_vfn_model_dir),
+    #         current_policy_path,
+    #         policy_model_dir,
+    #         base_model=(
+    #             "microsoft/Phi-4-mini-instruct" if args.base_model == "phi4"
+    #             else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+    #         )
+    #     )
