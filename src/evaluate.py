@@ -99,7 +99,7 @@ def gen_teacher_student_interactions(
         idx_map = []
         for idx, inter in enumerate(interactions):
             if not ended[idx]:
-                teacher_prompts.append(str(inter.chat_history))
+                teacher_prompts.append(inter.chat_history)
                 idx_map.append(idx)
 
         if not teacher_prompts:
@@ -153,7 +153,7 @@ def gen_teacher_student_interactions(
     )
 
 
-def evaluate(interactions: InteractionDataset, judge_llm: LLM) -> EvaluationDataset:
+def evaluate(interactions: InteractionDataset, judge_llm: LLM, max_interactions: int) -> EvaluationDataset:
     judge = Judge(judge_llm)
 
     evaluations = []
@@ -257,7 +257,7 @@ if __name__ == "__main__":
                 evaluations_path.unlink(missing_ok=True)
 
             if not evaluations_path.exists():
-                evaluations_dataset = evaluate(interactions_dataset, judge_llm)
+                evaluations_dataset = evaluate(interactions_dataset, judge_llm, max_interactions)
                 judge_llm.unload()
                 evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
 

@@ -93,6 +93,9 @@ class EvaluationDataset(BaseModel):
     def __len__(self) -> int:
         return len(self.evaluations)
 
+    def avg_performance(self) -> float:
+        return np.mean([e.assessment for e in self.evaluations])
+
 
 class JudgeDataset(BaseModel):
     model_name: str
