@@ -13,10 +13,9 @@ import torch
 import unsloth
 from datasets import load_dataset, Dataset
 from ollama import Client
-from peft import LoraConfig, PeftModel, get_peft_model
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, Trainer, \
-    AutoModelForSequenceClassification, BitsAndBytesConfig
-from trl import GRPOConfig, GRPOTrainer, SFTConfig, SFTTrainer
+from transformers import AutoTokenizer, TrainingArguments, Trainer, \
+    AutoModelForSequenceClassification
+from trl import SFTConfig, SFTTrainer, DPOConfig, DPOTrainer
 
 from agents import Teacher, OllamaAgent, LLM
 from evaluate import gen_teacher_student_interactions, gen_seeds, evaluate
@@ -270,8 +269,8 @@ def prepare_for_dpo(
                 }
                 for h in history[:2 * z - 1]
             ]
-            c1 = model.query(trajectory, temperature=1.5)
-            c2 = model.query(trajectory, temperature=1.5)
+            c1 = model.query(trajectory, temperature=2.1)
+            c2 = model.query(trajectory, temperature=2.1)
             completions.append(
                 (
                     trajectory,
@@ -309,164 +308,42 @@ def prepare_for_dpo(
 
 def policy_train(
         dataset_path: pathlib.Path,
-        policy_checkpoints: pathlib.Path,
-        action_value_fn_path: str,
-        policy_path: Optional[pathlib.Path],
-        output_dir: pathlib.Path,
-        base_model: str = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+        policy_path: pathlib.Path,
+        checkpoints_dir: pathlib.Path,
+        output_dir: pathlib.Path
 ) -> None:
-    # Load dataset
-    evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
-    dataset = defaultdict(list)
-    for item in evaluations_dataset.root:
-        history = item.interaction.chat_history.root
-        trajectory = [ChatHistory.model_validate(history[:2 * z + 1]).format() for z in
-                      range(math.ceil(len(history) / 2))]
-        dataset["prompt"].extend(trajectory)
-    hf_dataset = Dataset.from_dict(dataset)
+    train_dataset = json.loads(dataset_path.read_text(encoding="UTF-8"))
 
-    # Define reward model
-    rwd_fn = ActionValueFn(action_value_fn_path, max_length=768)
+    qwen = Qwen(str(policy_path))
+    qwen.load()
 
-    # GRPO config
-    training_args = GRPOConfig(
-        output_dir=policy_checkpoints,
-        learning_rate=5e-6,  # higher LR for faster adaptation if LoRA is used
-        per_device_train_batch_size=args.train_batch_size,
-        temperature=1.2,  # lower to reduce randomness
-        max_prompt_length=880,  # allow richer context
-        max_completion_length=128,  # generate more thoughtful responses
-        num_generations=4,  # increase diversity
-        num_train_epochs=1,  # train longe
-        gradient_accumulation_steps=4,
-        gradient_checkpointing=False,
-        save_strategy="epoch",
-        logging_steps=50,
-        evaluation_strategy="no",  # consider "epoch" if val set is added
-        warmup_steps=100,
-        lr_scheduler_type="linear",
-        report_to="none",  # add "wandb" or "tensorboard" if needed
-        # learning_rate=1e-6,
-        # num_generations=2,
-        # per_device_train_batch_size=1,
-        # temperature=1.7,
-        # max_prompt_length=16,
-        # gradient_accumulation_steps=1,
-        # max_completion_length=8,
-        # num_train_epochs=1,
-        # gradient_checkpointing=True,
-        # deepspeed=deepspeed_config_path,
+    training_args = DPOConfig(
+        per_device_train_batch_size=4,
+        gradient_accumulation_steps=8,
+        warmup_ratio=0.1,
+        num_train_epochs=1,
+        max_length=1024,
+        fp16=False,
+        bf16=True,
+        logging_steps=1,
+        optim="adamw_8bit",
+        output_dir=checkpoints_dir,
+        beta=0.1,
+        learning_rate=1e-6,
+        max_prompt_length=128,
     )
 
-    quantization_config = BitsAndBytesConfig(load_in_4bit=True, llm_int4_threshold=200.0)
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model, torch_dtype=torch.float32, trust_remote_code=True, quantization_config=quantization_config
-    )
-
-    lora_config = LoraConfig(
-        r=2,
-        lora_alpha=32,
-        lora_dropout=0.05,
-        bias="none",
-        target_modules="all-linear",  # ["o_proj", "gate_proj", "up_proj", "down_proj"],
-        task_type="CAUSAL_LM",
-    )
-
-    if policy_path is not None:
-        print(f"Loading previous PEFT weights from {policy_path}")
-        model = PeftModel.from_pretrained(model, policy_path, config=lora_config, is_trainable=True)
-    else:
-        print("No previous adapter found — starting fresh.")
-        model = get_peft_model(model, lora_config)
-        model.train()
-
-    model.print_trainable_parameters()
-    torch.cuda.empty_cache()
-    print(torch.cuda.memory_summary())
-
-    # Train the model with GRPO
-    trainer = GRPOTrainer(
+    dpo_trainer = DPOTrainer(
+        model=qwen.model,
+        ref_model=None,
         args=training_args,
-        model=model,
-        reward_funcs=rwd_fn.model,
-        reward_processing_classes=rwd_fn.tokenizer,
-        train_dataset=hf_dataset,
+        train_dataset=train_dataset,
+        processing_class=qwen.tokenizer
     )
-    torch.cuda.empty_cache()
-    trainer.train()
 
-    # Save only the LoRA adapter
-    model.save_pretrained(str(output_dir))
-    del trainer, model, rwd_fn
-    torch.cuda.empty_cache()
-
-
-# def main(
-#         dataset: pathlib.Path,
-#         inference_prompt: pathlib.Path,
-#         instruct_model: str,
-#         checkpoints_dir: pathlib.Path,
-#         model_dir: pathlib.Path
-# ) -> None:
-#     with open(inference_prompt, "r", encoding="utf-8") as file:
-#         inference_prompt_template = escape_template(file.read())
-#
-#     with open(dataset, "r") as f:
-#         train_dataset = TrainDataset.model_validate_json(f.read())
-#
-#     tlr_dataset = Dataset.from_dict({
-#         "prompt": [
-#             inference_prompt_template.format(input=i.prompt) for i in train_dataset.get_eligible_for_training()
-#         ],
-#         "chosen": [
-#             i.chosen for i in train_dataset.get_eligible_for_training()
-#         ],
-#         "rejected": [
-#             i.rejected for i in train_dataset.get_eligible_for_training()
-#         ]
-#     })
-#
-#     model = AutoModelForCausalLM.from_pretrained(
-#         instruct_model, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True
-#     )
-#
-#     ref_model = AutoModelForCausalLM.from_pretrained(
-#         instruct_model, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True,
-#     )
-#
-#     tokenizer = AutoTokenizer.from_pretrained(instruct_model)
-#
-#     training_args = DPOConfig(
-#         per_device_train_batch_size=1,
-#         gradient_accumulation_steps=4,
-#         max_grad_norm=0.3,
-#         num_train_epochs=2,
-#         learning_rate=5e-5,
-#         save_total_limit=3,
-#         logging_steps=10,
-#         output_dir=checkpoints_dir,
-#         # optim="paged_adamw_32bit",
-#         lr_scheduler_type="cosine",
-#         warmup_ratio=0.05,
-#         remove_unused_columns=False,
-#         bf16=True
-#     )
-#
-#     dpo_trainer = DPOTrainer(
-#         model=model,
-#         ref_model=ref_model,
-#         args=training_args,
-#         beta=0.1,
-#         train_dataset=tlr_dataset,
-#         tokenizer=tokenizer,
-#     )
-#
-#     dpo_trainer.train()
-#
-#     output_dir = pathlib.Path(model_dir)
-#     dpo_trainer.save_model(output_dir)
-#     dpo_trainer.model.save_pretrained(output_dir)
-#     tokenizer.save_pretrained(output_dir)
+    dpo_trainer.train()
+    qwen.save(output_dir)
+    qwen.unload()
 
 
 def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_dir: pathlib.Path) -> None:
@@ -526,12 +403,6 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
 
 
 if __name__ == "__main__":
-    import torch.multiprocessing as mp
-
-    try:
-        mp.set_start_method('spawn')
-    except RuntimeError:
-        pass  # start method already set, safe to ignore
     parser = argparse.ArgumentParser(
         prog="FULL RL", description="Train a socratic llm through RL."
     )
@@ -629,6 +500,8 @@ if __name__ == "__main__":
             print(f"\nAvg. perf. {i}: {evaluations_dataset.avg_performance()}\n", flush=True)
 
         if not action_vfn_model_dir.exists():
+            print()
+            print("#### VF training")
             for j in range(args.vf_training_it):
                 vf_training_path = train_it_dir / "vf_training"
                 current_vf_step_path = current_vf_path if j == 0 else vf_training_path / f"it_{j - 1}" / "value_fn"
@@ -638,13 +511,9 @@ if __name__ == "__main__":
                     if j < args.vf_training_it - 1 else action_vfn_model_dir
                 )
 
-                print()
-                print("#### VF rollout")
                 dataset_path = vf_training_path / f"it_{j}" / "dataset"
                 vf_rollout(evaluations_path, str(current_vf_step_path), dataset_path, "cuda")
 
-                print()
-                print("#### VF training")
                 vf_train(
                     dataset_path,
                     value_checkpoints / f"it_{j}",
@@ -664,16 +533,11 @@ if __name__ == "__main__":
                 device="cuda"
             )
 
-        # print()
-        # print("#### Policy training")
-    #     policy_train(
-    #         evaluations_path,
-    #         policy_checkpoints,
-    #         str(action_vfn_model_dir),
-    #         current_policy_path,
-    #         policy_model_dir,
-    #         base_model=(
-    #             "microsoft/Phi-4-mini-instruct" if args.base_model == "phi4"
-    #             else "HuggingFaceTB/SmolLM2-1.7B-Instruct"
-    #         )
-    #     )
+        print()
+        print("#### Policy training")
+        policy_train(
+            dpo_dataset,
+            current_policy_path,
+            policy_checkpoints,
+            policy_model_dir
+        )
