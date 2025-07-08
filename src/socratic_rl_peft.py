@@ -523,9 +523,9 @@ if __name__ == "__main__":
                     device="cuda"
                 )
 
-        print()
-        print("#### Preparing for DPO training")
         if not dpo_dataset.exists():
+            print()
+            print("#### Preparing for DPO training")
             prepare_for_dpo(
                 evaluations_path,
                 action_vfn_model_dir,
