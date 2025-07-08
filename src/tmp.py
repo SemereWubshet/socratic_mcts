@@ -6,10 +6,8 @@ from datasets import load_dataset
 
 from agents import StudentSeed
 
-T = TypeVar('T', bound='Record')
-
-I = TypeVar('I')
-O = TypeVar('O')
+T = TypeVar('T')  # Input or current type
+U = TypeVar('U')  # Output or next type
 
 
 class Metadata(pydantic.BaseModel):
@@ -59,34 +57,44 @@ class Tracker(abc.ABC):
     pass
 
 
-class Emitter(Generic[O]):
+class Emitter(Generic[T]):
 
-    def __init__(self, next_stage: 'Stage', tracker: Dict[str, int]):
-        self._next_stage = next_stage
+    def __init__(
+            self,
+            stage: Optional['Stage[T, U]'],
+            next_emitter: Optional['Emitter[U]'],
+            tracker: Dict[str, int]
+    ):
+
+        if (stage is None) != (next_emitter is None):
+            raise ValueError("Must specify both next_stage and next_emitter or neither.")
+
+        self._stage = stage
+        self.next_emitter = next_emitter
         self._tracker = tracker
 
-    def emit(self, sample: O) -> None:
-        self._next_stage.process(sample, self)
+    def emit(self, sample: T) -> None:
+        if self._stage and self.next_emitter:
+            self._stage.process(sample, self.next_emitter)
 
     def add(self, name: str) -> None:
-        c = self._tracker.get(name, 0)
-        self._tracker[name] = c + 1
+        self._tracker[name] = self._tracker.get(name, 0) + 1
 
 
-class Stage(Generic[I, O], abc.ABC):
+class Stage(Generic[T, U], abc.ABC):
 
     @abc.abstractmethod
-    def process(self, sample: I, emitter: Emitter[O]) -> None:
+    def process(self, sample: T, emitter: Emitter[U]) -> None:
         ...
 
-    def cleanup(self, emitter: Emitter[O]) -> None:
+    def cleanup(self, emitter: Emitter[U]) -> None:
         ...
 
 
 class DataSource(Generic[T], abc.ABC):
 
     @abc.abstractmethod
-    def read(self) -> Generator[Tuple[str, T]]:
+    def read(self) -> Generator[T, None, None]:
         ...
 
 
@@ -135,15 +143,15 @@ class SeedStage(Stage[str, Seed]):
         pass
 
 
-class BufferStage(Stage[I, List[I]]):
+class BufferStage(Stage[T, List[T]]):
 
     def __init__(self):
-        self._buffer: List[I] = []
+        self._buffer: List[T] = []
 
-    def process(self, sample: I, emitter: Emitter[I]) -> None:
+    def process(self, sample: T, emitter: Emitter[T]) -> None:
         self._buffer.append(sample)
 
-    def cleanup(self, emitter: Emitter[I]) -> None:
+    def cleanup(self, emitter: Emitter[T]) -> None:
         emitter.emit(self._buffer)
         self._buffer.clear()
 
@@ -151,40 +159,105 @@ class BufferStage(Stage[I, List[I]]):
 # class GenSeed()
 
 
+class CollectSink(Stage[T, None]):
+    def __init__(self):
+        self.items: list[T] = []
+
+    def process(self, sample: T, emitter: Emitter[None]) -> None:
+        self.items.append(sample)
+
+
+class PipelineStep(Generic[T, U]):
+    def __init__(self, previous: Optional['PipelineStep[T, U]'], stage: Optional[Stage[T, U]]):
+        self.previous = previous
+        self.stage = stage
+
+
 class SocraticBench(Generic[T]):
 
-    def __init__(self):
-        ...
-
-    def from_data(self, source: DataSource) -> 'SocraticBench[T]':
-        ...
-
-    def with_stage(self, step: Stage[T]) -> 'SocraticBench[T]':
-        ...
-
-    def branch(self, stages: List[Stage[T]]) -> 'SocraticBench[T]':
-        ...
-
-    def run(self) -> Tuple[List[T], Tracker]:
-        ...
+    def __init__(self, source: DataSource[T], step: Optional[PipelineStep[T, U]] = None):
+        self._source = source
+        self._last_step = step
 
     @classmethod
     def default(cls) -> 'SocraticBench[Record]':
         ...
 
+    @classmethod
+    def from_data(cls, source: DataSource[T]) -> 'SocraticBench[T]':
+        return cls(source)
+
+    def apply(self, stage: Stage[T, U]) -> 'SocraticBench[U]':
+        last_step = PipelineStep(self._last_step, stage)
+        return SocraticBench(self._source, last_step)
+
+    def batch(self, stage: Stage[List[T], U]) -> 'SocraticBench[U]':
+        buffered = BufferStage[T]()
+        return self.apply(buffered).apply(stage)
+
+    def run(self) -> Tuple[List[T], Tracker]:
+        tracker: Dict[str, int] = {}
+        sink = CollectSink()
+        terminal = Emitter(None, None, tracker)
+        final_sink = Emitter(sink, terminal, tracker)
+        current_emitter = final_sink
+
+        step = self._last_step
+        while step and step.stage is not None:
+            current_emitter = Emitter(step.stage, current_emitter, tracker)
+            step = step.previous
+
+        for sample in self._source.read():
+            current_emitter.emit(sample)
+
+        return sink.items, tracker
+
+
+### TMP Classes
+
+class Tokenize(Stage[str, list[str]]):
+    def process(self, sample: str, emitter: Emitter[list[str]]) -> None:
+        emitter.emit(sample.split())
+
+
+class Count(Stage[list[str], int]):
+    def process(self, sample: list[str], emitter: Emitter[int]) -> None:
+        emitter.emit(len(sample))
+
+
+class StringSource(DataSource[str]):
+    def __init__(self, data: list[str]):
+        self._data = data
+
+    def read(self) -> Generator[str, None, None]:
+        yield from self._data
+
 
 if __name__ == "__main__":
+    strsource = StringSource(["hello world", "this is SocraticBench"])
+    sink = CollectSink()
+
+    pipeline = (
+        SocraticBench.from_data(strsource)  # str
+        .apply(Tokenize())  # str → list[str]
+        .apply(Count())  # list[str] → int
+    )
+    items, t = pipeline.run()
+
+    print(items)
+
     # API - pipeline
-    s = SocraticBench.default()
-    s.run()
+    # s = SocraticBench.default()
+    # s.run()
 
     # API - selecting pipeline stages
-    s = (SocraticBench()
-         .from_data(PrincetonChapters(Record, num_conversations=10))
-         # .with_stage(DumpStage())
-         # .with_stage(DumpStage())
-         )
-    s.run()
+    # s = (SocraticBench.from_data(PrincetonChapters(Record, num_conversations=10))
+    #      .with_stage(SeedStage(None))
+    #      .with_state()
+    #      # .with_stage(DumpStage())
+    #      # .with_stage(DumpStage())
+    #      )
+    # s.run()
 
     # API - fine control (simulating single chat)
 
