@@ -13,6 +13,7 @@ import torch
 import unsloth
 from datasets import load_dataset, Dataset
 from ollama import Client
+from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, \
     AutoModelForSequenceClassification
 from trl import SFTConfig, SFTTrainer, DPOConfig, DPOTrainer
@@ -200,7 +201,7 @@ def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pat
     action_value_fn = ActionValueFn(action_vf_path, max_length=1024, gpu=device)
 
     dataset = defaultdict(list)
-    for item in evaluations_dataset.evaluations:
+    for item in tqdm(evaluations_dataset.evaluations, desc="vf rollout"):
         assessment = item.assessment
         history = item.interaction.chat_history.root
         trajectory = [
@@ -259,7 +260,7 @@ def prepare_for_dpo(
     model = Qwen(base_model=str(policy_path))
     evaluations_dataset = EvaluationDataset.model_validate_json(evaluations_dataset_path.read_text())
     completions: List[Tuple[List[Dict[str, str]], ...]] = []
-    for item in evaluations_dataset.evaluations:
+    for item in tqdm(evaluations_dataset.evaluations, desc="DPO policy forward pass"):
         history = item.interaction.chat_history.root
         for z in range(1, math.ceil(len(history) / 2)):
             trajectory = [
@@ -283,7 +284,7 @@ def prepare_for_dpo(
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
 
     dataset = {"prompt": [], "chosen": [], "rejected": [], "v_chosen": [], "v_rejected": []}
-    for t, cl1, cl2 in completions:
+    for t, cl1, cl2 in tqdm(completions, desc="DPO eval samples"):
         v1 = action_value_fn(t + cl1)
         v2 = action_value_fn(t + cl2)
 
