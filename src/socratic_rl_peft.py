@@ -5,7 +5,7 @@ import math
 import pathlib
 import shutil
 from collections import defaultdict
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 import numpy as np
 import scipy
@@ -258,7 +258,7 @@ def prepare_for_dpo(
 ) -> None:
     model = Qwen(base_model=str(policy_path))
     evaluations_dataset = EvaluationDataset.model_validate_json(evaluations_dataset_path.read_text())
-    completions = []
+    completions: List[Tuple[List[Dict[str, str]], ...]] = []
     for item in evaluations_dataset.evaluations:
         history = item.interaction.chat_history.root
         for z in range(1, math.ceil(len(history) / 2)):
@@ -283,21 +283,21 @@ def prepare_for_dpo(
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
 
     dataset = {"prompt": [], "chosen": [], "rejected": [], "v_chosen": [], "v_rejected": []}
-    for t, c1, c2 in completions:
-        v1 = action_value_fn(t + [c1, ])
-        v2 = action_value_fn(t + [c2, ])
+    for t, cl1, cl2 in completions:
+        v1 = action_value_fn(t + cl1)
+        v2 = action_value_fn(t + cl2)
 
         dataset["prompt"].append(t)
 
         if v1 >= v2:
-            dataset["chosen"].append(c1)
+            dataset["chosen"].append(cl1)
             dataset["v_chosen"].append(v1)
-            dataset["rejected"].append(c2)
+            dataset["rejected"].append(cl2)
             dataset["v_rejected"].append(v2)
         else:
-            dataset["chosen"].append(c2)
+            dataset["chosen"].append(cl2)
             dataset["v_chosen"].append(v2)
-            dataset["rejected"].append(c1)
+            dataset["rejected"].append(cl1)
             dataset["v_rejected"].append(v1)
 
     action_value_fn.unload()
