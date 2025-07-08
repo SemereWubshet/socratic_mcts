@@ -274,8 +274,8 @@ def prepare_for_dpo(
             completions.append(
                 (
                     trajectory,
-                    {"role": "assistant", "content": c1},
-                    {"role": "assistant", "content": c2}
+                    [{"role": "assistant", "content": c1}],
+                    [{"role": "assistant", "content": c2}]
                 )
             )
     model.unload()
