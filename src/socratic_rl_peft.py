@@ -312,7 +312,8 @@ def policy_train(
         checkpoints_dir: pathlib.Path,
         output_dir: pathlib.Path
 ) -> None:
-    train_dataset = json.loads(dataset_path.read_text(encoding="UTF-8"))
+    dict_train_dataset = json.loads(dataset_path.read_text(encoding="UTF-8"))
+    train_dataset = Dataset.from_dict(dict_train_dataset)
 
     qwen = Qwen(str(policy_path))
     qwen.load()
