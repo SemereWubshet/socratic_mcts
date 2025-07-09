@@ -285,7 +285,7 @@ def prepare_for_dpo(
         policy_path: pathlib.Path,
         output_path: pathlib.Path,
         device: str
-) -> None:
+) -> Dict[str, Any]:
     model = Qwen(base_model=str(policy_path))
     evaluations_dataset = EvaluationDataset.model_validate_json(evaluations_dataset_path.read_text())
     completions: List[Tuple[List[Dict[str, str]], ...]] = []
@@ -335,13 +335,22 @@ def prepare_for_dpo(
     with open(output_path, "w", encoding="UTF-8") as f:
         f.write(json.dumps(dataset))
 
+    return {
+        "mean_v_chosen": np.mean(dataset["v_chosen"]),
+        "max_v_chosen": np.max(dataset["v_chosen"]),
+        "min_v_chosen": np.min(dataset["v_chosen"]),
+        "mean_v_rejected": np.mean(dataset["v_rejected"]),
+        "max_v_rejected": np.max(dataset["v_rejected"]),
+        "min_v_rejected": np.min(dataset["v_rejected"]),
+    }
+
 
 def policy_train(
         dataset_path: pathlib.Path,
         policy_path: pathlib.Path,
         checkpoints_dir: pathlib.Path,
         output_dir: pathlib.Path
-) -> None:
+) -> Dict[str, Any]:
     dict_train_dataset = json.loads(dataset_path.read_text(encoding="UTF-8"))
     train_dataset = Dataset.from_dict(dict_train_dataset)
 
@@ -372,9 +381,11 @@ def policy_train(
         processing_class=qwen.tokenizer
     )
 
-    dpo_trainer.train()
+    results = dpo_trainer.train()
     qwen.save(output_dir)
     qwen.unload()
+
+    return results.metrics
 
 
 def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_dir: pathlib.Path) -> None:
@@ -569,7 +580,7 @@ if __name__ == "__main__":
         if not dpo_dataset.exists():
             print()
             print("#### Preparing for DPO training")
-            prepare_for_dpo(
+            stats["dpo"] = prepare_for_dpo(
                 evaluations_path,
                 action_vfn_model_dir,
                 current_policy_path,
@@ -579,12 +590,14 @@ if __name__ == "__main__":
 
         print()
         print("#### Policy training")
-        policy_train(
+        d = policy_train(
             dpo_dataset,
             current_policy_path,
             policy_checkpoints,
             policy_model_dir
         )
+
+        stats["policy_training"].append(d)
 
         print(stats)
 
