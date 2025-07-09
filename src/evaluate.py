@@ -57,7 +57,10 @@ def gen_seeds(
 
         seed_type = random.randint(0, len(StudentSeed.INTERACTION_TYPES)) - 1
         seeder = StudentSeed(llm, seed_type)
-        question, main_topics = seeder.gen_seed(page_text)
+        try:
+            question, main_topics = seeder.gen_seed(page_text)
+        except RuntimeError:
+            continue
         seeds.append(
             Seed(source_content=page_text,
                  question=question,
