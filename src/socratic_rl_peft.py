@@ -586,4 +586,6 @@ if __name__ == "__main__":
             policy_model_dir
         )
 
+        print(stats)
+
         stats_path.write_text(json.dumps(stats))
