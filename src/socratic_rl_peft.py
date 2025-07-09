@@ -317,27 +317,6 @@ def prepare_for_dpo(
         f.write(json.dumps(dataset))
 
 
-## TMP
-class DebugTokenizer:
-    def __init__(self, tokenizer):
-        self.tokenizer = tokenizer
-
-    def __call__(self, *args, **kwargs):
-        print("\n🧪 Tokenizer called with args:")
-        print(args)
-        print("kwargs:", kwargs)
-
-        out = self.tokenizer(*args, **kwargs)
-        print("🧪 Tokenized input_ids (first 10):", out['input_ids'][:10])
-        return out
-
-    def __getattr__(self, name):
-        tokenizer = super().__getattribute__('tokenizer')
-        return getattr(tokenizer, name)
-
-
-##
-
 def policy_train(
         dataset_path: pathlib.Path,
         policy_path: pathlib.Path,
@@ -349,10 +328,6 @@ def policy_train(
 
     qwen = Qwen(str(policy_path))
     qwen.load()
-
-    ## TMP
-    qwen.tokenizer = DebugTokenizer(qwen.tokenizer)
-    ##
 
     training_args = DPOConfig(
         per_device_train_batch_size=4,
