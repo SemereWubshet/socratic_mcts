@@ -597,7 +597,7 @@ if __name__ == "__main__":
             policy_model_dir
         )
 
-        stats["policy_training"].append(d)
+        stats["policy_training"] = d
 
         print(stats)
 
