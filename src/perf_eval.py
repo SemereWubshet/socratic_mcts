@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import statsmodels.stats.proportion as smp
 from bokeh.io import export_svgs, curdoc
-from bokeh.models import ColumnDataSource, Whisker
+from bokeh.models import ColumnDataSource, Whisker, Span
 from bokeh.palettes import Category10
 from bokeh.plotting import figure
 from bokeh.themes import Theme
@@ -30,6 +30,14 @@ VISUAL_SETTINGS = {
     "gemma3:27b": {
         "color": Category10[10][3],
         "display_name": "Gemma 3"
+    },
+    "gpt-4o": {
+        "color": Category10[10][4],
+        "display_name": "GPT-4o"
+    },
+    "models/learnlm-2.0-flash-experimental": {
+        "color": Category10[10][5],
+        "display_name": "LearnLM 2.0"
     },
 }
 
@@ -80,10 +88,11 @@ if __name__ == "__main__":
     filtered_df = df[df['max_interactions'] == df['max_interactions'].max()]
 
     summary_data = []
-    for (model_name, model_size), group in filtered_df.groupby(['teacher_llm', 'teacher_llm_size']):
+    for model_name, group in filtered_df.groupby('teacher_llm'):
         total = len(group)
         successes = group['assessment'].sum()
         success_rate = successes / total
+        model_size = float(group['teacher_llm_size'].unique())
 
         ci_low, ci_upp = smp.proportion_confint(successes, total, alpha=0.05, method='wilson')
 
@@ -150,7 +159,7 @@ if __name__ == "__main__":
 
     student_types = pivot_df["student_type"].unique()
     teacher_llms = [c for c in pivot_df.columns if c != "student_type"]
-    persona_map = {s: f"ST{i}" for i, s in enumerate(student_types, start=1)}
+    persona_map = {s: f"SP{i}" for i, s in enumerate(student_types, start=1)}
 
     pivot_df["student_type_id"] = pivot_df["student_type"].map(persona_map)
     data = pivot_df.to_dict(orient="list")
@@ -158,8 +167,8 @@ if __name__ == "__main__":
     source = ColumnDataSource(data=data)
 
     p2 = figure(
-        x_axis_label="Student Persona",
-        y_axis_label="Success Rate",
+        x_axis_label="Student persona",
+        y_axis_label="Success rate",
         height=250,
         width=400,
         output_backend="svg",
@@ -170,7 +179,7 @@ if __name__ == "__main__":
     bar_width = 0.8 / max(1, len(teacher_llms))
 
     for i, teacher_llm in enumerate(teacher_llms):
-        offset = -0.4 + i * bar_width
+        offset = -bar_width * len(teacher_llms) / 2 + bar_width / 2 + i * bar_width
         p2.vbar(x=dodge("student_type_id", offset, range=p2.x_range), top=teacher_llm, source=source,
                 width=bar_width, color=VISUAL_SETTINGS[teacher_llm]["color"])
 
@@ -201,8 +210,8 @@ if __name__ == "__main__":
     source = ColumnDataSource(data=data)
 
     p3 = figure(
-        x_axis_label="Opening Question",
-        y_axis_label="Success Rate",
+        x_axis_label="Opening question",
+        y_axis_label="Success rate",
         height=250,
         width=400,
         output_backend="svg",
@@ -213,7 +222,7 @@ if __name__ == "__main__":
     bar_width = 0.8 / max(1, len(teacher_llms))
 
     for i, teacher_llm in enumerate(teacher_llms):
-        offset = -0.4 + i * bar_width
+        offset = -bar_width * len(teacher_llms) / 2 + bar_width / 2 + i * bar_width
         p3.vbar(x=dodge("interaction_type_id", offset, range=p3.x_range), top=teacher_llm, source=source,
                 width=bar_width, color=VISUAL_SETTINGS[teacher_llm]["color"])
 
@@ -255,6 +264,20 @@ if __name__ == "__main__":
     p4.scatter("model_size", "success_rate", source=source, size=10, color="color")
     p4.add_layout(Whisker(source=source, base="model_size",
                           upper="upper", lower="lower", line_color="color"))
+
+    without_size = filtered_df[np.isnan(filtered_df["teacher_llm_size"])]
+    for teacher_llm, group in without_size.groupby("teacher_llm"):
+        total = len(group)
+        successes = group["assessment"].sum()
+        success_rate = successes / total
+        hline = Span(
+            location=success_rate,
+            dimension='width',
+            line_color=VISUAL_SETTINGS[teacher_llm]["color"],
+            line_dash="dashed",
+            line_width=2
+        )
+        p4.renderers.extend([hline, ])
 
     export_svgs(p4, filename="./figs/success_rate_by_model_size.svg")
 

@@ -31,6 +31,14 @@ VISUAL_SETTINGS = {
         "color": Category10[10][3],
         "display_name": "Gemma 3"
     },
+    "gpt-4o": {
+        "color": Category10[10][4],
+        "display_name": "GPT-4o"
+    },
+    "models/learnlm-2.0-flash-experimental": {
+        "color": Category10[10][5],
+        "display_name": "LearnLM 2.0"
+    },
 }
 
 if __name__ == "__main__":
@@ -56,11 +64,11 @@ if __name__ == "__main__":
     classifier = pipeline("zero-shot-classification", model="facebook/bart-large-mnli")
 
     labels = [
-        "All main topics addressed",
-        "Used Socratic method",
-        "Resolved the opening question",
-        "Adapted to student responses",
-        "Helped deepen student understanding"
+        "Not all main topics addressed",
+        "Not used Socratic method",
+        "Not resolved the opening question",
+        "Not adapted to student responses",
+        "Not helped deepen student understanding"
     ]
 
     all_data = []
@@ -100,24 +108,24 @@ if __name__ == "__main__":
         y_axis_label="Normalized Presence\nScore (from 0 to 1)"
     )
 
+    bar_width = 0.6 / len(unique_llms)
+
     for i, llm in enumerate(unique_llms):
         llm_df = df[df["llm"] == llm].set_index("label")
         source = ColumnDataSource(data={
             "label": labels,
             "score": [llm_df.loc[l, "score"] if l in llm_df.index else 0.0 for l in labels]
         })
+        offset = -bar_width * len(unique_llms) / 2 + bar_width / 2 + i * bar_width
         p.vbar(
-            x=dodge("label", -0.3 + i * (0.6 / len(unique_llms)), range=p.x_range),
+            x=dodge("label", offset, range=p.x_range),
             top="score",
             width=0.6 / len(unique_llms),
             source=source,
-            legend_label=llm,
-            color=colors[i % len(colors)]
+            color=VISUAL_SETTINGS[llm]["color"]
         )
 
     p.xgrid.grid_line_color = None
     p.xaxis.major_label_orientation = 0.9
-    p.legend.orientation = "horizontal"
-    p.legend.location = "top_center"
 
     export_svg(p, filename=str(args.OUTPUT_DIR / "pedagogical_properties.svg"))
