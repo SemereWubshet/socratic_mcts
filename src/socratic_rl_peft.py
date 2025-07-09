@@ -5,7 +5,7 @@ import math
 import pathlib
 import shutil
 from collections import defaultdict
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 
 import numpy as np
 import scipy
@@ -206,10 +206,17 @@ def rollout(
     model.unload()
 
 
-def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pathlib.Path, device: str) -> None:
+def vf_rollout(
+        dataset_path: pathlib.Path,
+        action_vf_path: str,
+        output_path: pathlib.Path,
+        device: str
+) -> Dict[str, Any]:
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
     action_value_fn = ActionValueFn(action_vf_path, max_length=1024, gpu=device)
 
+    all_preds = []
+    all_targets = []
     dataset = defaultdict(list)
     for item in tqdm(evaluations_dataset.evaluations, desc="vf rollout"):
         assessment = item.assessment
@@ -234,11 +241,21 @@ def vf_rollout(dataset_path: pathlib.Path, action_vf_path: str, output_path: pat
         dataset["history"].extend(trajectory)
         dataset["labels"].extend(value_targets)
 
+        all_preds.extend(vf_preds)
+        all_targets.extend(value_targets)
+
     hf_dataset = Dataset.from_dict(dataset)
     tokenized_dataset = hf_dataset.map(action_value_fn.batch_tokenize, batched=True, batch_size=8).shuffle()
     tokenized_dataset.save_to_disk(output_path)
 
     action_value_fn.unload()
+
+    all_preds = np.array(all_preds)
+    all_targets = np.array(all_targets)
+    vf_loss = float(np.mean((all_preds - all_targets) ** 2))
+    explained_var = float(1 - np.var(all_targets - all_preds) / (np.var(all_targets) + 1e-8))
+
+    return {"vf_loss": vf_loss, "explained_var": explained_var}
 
 
 def vf_train(
@@ -247,17 +264,19 @@ def vf_train(
         action_value_fn_path: str,
         vf_output_path: pathlib.Path,
         device: str
-) -> None:
+) -> Dict[str, Any]:
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
     training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5,
                                       gradient_checkpointing=True)
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
     action_value_fn.load()
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
-    trainer.train()
+    results = trainer.train()
     action_value_fn.save(vf_output_path)
 
     action_value_fn.unload()
+
+    return results.metrics
 
 
 def prepare_for_dpo(
@@ -405,7 +424,7 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
         args=training_args,
     )
     train_stats = trainer.train()
-    with open(train_dir / "train_stats.json", "w") as f:
+    with open(train_dir / "stf_train_stats.json", "w") as f:
         json.dump(train_stats, f)
 
     model.save_pretrained(pretrained_dir)
@@ -469,6 +488,7 @@ if __name__ == "__main__":
         train_it_dir = train_dir / f"iteration_{i}"
         train_it_dir.mkdir(exist_ok=True)
 
+        stats_path = train_it_dir / "stats.json"
         seeds_path = train_it_dir / "seeds.json"
         interactions_path = train_it_dir / "interactions.json"
         evaluations_path = train_it_dir / "evaluations.json"
@@ -484,6 +504,11 @@ if __name__ == "__main__":
 
         if policy_model_dir.exists():
             continue
+
+        if stats_path.exists():
+            stats = json.loads(stats_path.read_text())
+        else:
+            stats: Dict[str, Any] = {"it": i}
 
         print(f" -------------------- ------------------ starting it {i} -------------------- ------------------")
 
@@ -510,10 +535,12 @@ if __name__ == "__main__":
             evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
 
             print(f"\nAvg. perf. {i}: {evaluations_dataset.avg_performance()}\n", flush=True)
+            stats["avg_perf"] = evaluations_dataset.avg_performance()
 
         if not action_vfn_model_dir.exists():
             print()
             print("#### VF training")
+            stats["vf_training"] = {"vf_loss": [], "explained_var": [], "train": []}
             for j in range(args.vf_training_it):
                 vf_training_path = train_it_dir / "vf_training"
                 current_vf_step_path = current_vf_path if j == 0 else vf_training_path / f"it_{j - 1}" / "value_fn"
@@ -524,15 +551,20 @@ if __name__ == "__main__":
                 )
 
                 dataset_path = vf_training_path / f"it_{j}" / "dataset"
-                vf_rollout(evaluations_path, str(current_vf_step_path), dataset_path, "cuda")
+                d = vf_rollout(evaluations_path, str(current_vf_step_path), dataset_path, "cuda")
 
-                vf_train(
+                stats["vf_training"]["vf_loss"].append(d["vf_loss"])
+                stats["vf_training"]["explained_var"].append(d["explained_var"])
+
+                d = vf_train(
                     dataset_path,
                     value_checkpoints / f"it_{j}",
                     str(current_vf_step_path),
                     vf_target_path,
                     device="cuda"
                 )
+
+                stats["vf_training"]["train"].append(d)
 
         if not dpo_dataset.exists():
             print()
@@ -553,3 +585,5 @@ if __name__ == "__main__":
             policy_checkpoints,
             policy_model_dir
         )
+
+        stats_path.write_text(json.dumps(stats))
