@@ -20,9 +20,9 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      showgrid="false"
-     inkscape:zoom="1.8971429"
-     inkscape:cx="350.79065"
-     inkscape:cy="200.03765"
+     inkscape:zoom="1.3414826"
+     inkscape:cx="212.07879"
+     inkscape:cy="14.536156"
      inkscape:window-width="1920"
      inkscape:window-height="991"
      inkscape:window-x="-9"
@@ -896,4 +896,76 @@
      stroke-linejoin="bevel"
      stroke-miterlimit="10"
      id="text168">Score (from 0 to 1)</text>
+  <text
+     xml:space="preserve"
+     style="font-size:10.6667px;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-align:end;text-anchor:end;fill:#1f77b4;fill-opacity:1;stroke-width:1.506;stroke-opacity:0.972549"
+     x="370.18762"
+     y="-193.89305"
+     id="text429"
+     transform="rotate(40.670417)"><tspan
+       sodipodi:role="line"
+       id="tspan427"
+       x="370.18762"
+       y="-193.89305"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#1f77b4;fill-opacity:1">Socratic LLM</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:10.6667px;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-align:end;text-anchor:end;fill:#d62728;fill-opacity:1;stroke-width:1.506;stroke-opacity:0.972549"
+     x="339.26242"
+     y="-148.5607"
+     id="text429-9"
+     transform="rotate(40.670417)"><tspan
+       sodipodi:role="line"
+       id="tspan427-1"
+       x="339.26242"
+       y="-148.5607"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#d62728;fill-opacity:1">Gemma 3</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:10.6667px;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-align:end;text-anchor:end;fill:#9467bd;fill-opacity:1;stroke-width:1.506;stroke-opacity:0.972549"
+     x="342.40482"
+     y="-159.87869"
+     id="text429-9-9"
+     transform="rotate(40.670417)"><tspan
+       sodipodi:role="line"
+       id="tspan427-1-5"
+       x="342.40482"
+       y="-159.87869"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#9467bd;fill-opacity:1">GPT-4o</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:10.6667px;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-align:end;text-anchor:end;fill:#2ca02c;fill-opacity:1;stroke-width:1.506;stroke-opacity:0.972549"
+     x="324.16339"
+     y="-136.59375"
+     id="text429-9-9-4"
+     transform="rotate(40.670417)"><tspan
+       sodipodi:role="line"
+       id="tspan427-1-5-4"
+       x="324.16339"
+       y="-136.59375"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#2ca02c;fill-opacity:1">Llamma3.3</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:10.6667px;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-align:end;text-anchor:end;fill:#ff7f0e;fill-opacity:1;stroke-width:1.506;stroke-opacity:0.972549"
+     x="359.62469"
+     y="-170.19722"
+     id="text429-9-9-4-8"
+     transform="rotate(40.670417)"><tspan
+       sodipodi:role="line"
+       id="tspan427-1-5-4-5"
+       x="359.62469"
+       y="-170.19722"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#ff7f0e;fill-opacity:1">Mistral-small3.1</tspan></text>
+  <text
+     xml:space="preserve"
+     style="font-size:10.6667px;font-family:sans-serif;-inkscape-font-specification:sans-serif;text-align:end;text-anchor:end;fill:#8c564b;fill-opacity:1;stroke-width:1.506;stroke-opacity:0.972549"
+     x="363.48883"
+     y="-180.5947"
+     id="text429-9-9-4-8-4"
+     transform="rotate(40.670417)"><tspan
+       sodipodi:role="line"
+       id="tspan427-1-5-4-5-1"
+       x="363.48883"
+       y="-180.5947"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-family:sans-serif;-inkscape-font-specification:sans-serif;fill:#8c564b;fill-opacity:1">LearnLM 2.0</tspan></text>
 </svg>
