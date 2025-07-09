@@ -360,7 +360,7 @@ def policy_train(
         optim="adamw_8bit",
         output_dir=checkpoints_dir,
         beta=0.1,
-        learning_rate=1e-6,
+        learning_rate=5e-7,
         max_prompt_length=128,
     )
 
