@@ -218,7 +218,7 @@ def vf_rollout(
     all_preds = []
     all_targets = []
     dataset = defaultdict(list)
-    for item in tqdm(evaluations_dataset.evaluations, desc="vf rollout"):
+    for item in tqdm(evaluations_dataset.get_valid(), desc="vf rollout"):
         assessment = item.assessment
         history = item.interaction.chat_history.root
         trajectory = [
@@ -289,7 +289,7 @@ def prepare_for_dpo(
     model = Qwen(base_model=str(policy_path))
     evaluations_dataset = EvaluationDataset.model_validate_json(evaluations_dataset_path.read_text())
     completions: List[Tuple[List[Dict[str, str]], ...]] = []
-    for item in tqdm(evaluations_dataset.evaluations, desc="DPO policy forward pass"):
+    for item in tqdm(evaluations_dataset.get_valid(), desc="DPO policy forward pass"):
         history = item.interaction.chat_history.root
         for z in range(1, math.ceil(len(history) / 2)):
             trajectory = [
