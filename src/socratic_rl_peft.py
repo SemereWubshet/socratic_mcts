@@ -146,6 +146,16 @@ class Qwen(LLM):
         )
         self.model = unsloth.FastLanguageModel.for_inference(model)
 
+        # ✅ Patch apply_chat_template to default enable_thinking=False
+        if hasattr(self.tokenizer, "apply_chat_template"):
+            original_fn = self.tokenizer.apply_chat_template
+
+            def patched_apply_chat_template(conversation, **kwargs):
+                kwargs.setdefault("enable_thinking", False)
+                return original_fn(conversation, **kwargs)
+
+            self.tokenizer.apply_chat_template = patched_apply_chat_template
+
     def healthcheck(self) -> None:
         pass
 
@@ -318,7 +328,7 @@ class DebugTokenizer:
         print("kwargs:", kwargs)
 
         out = self.tokenizer(*args, **kwargs)
-        print("🧪 Tokenized input_ids (first 10):", out['input_ids'][0][:10])
+        print("🧪 Tokenized input_ids (first 10):", out['input_ids'][:10])
         return out
 
     def __getattr__(self, name):
