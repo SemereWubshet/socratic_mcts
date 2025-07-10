@@ -108,7 +108,7 @@ class ActionValueFn:
 
     def load(self) -> None:
         self.model = AutoModelForSequenceClassification.from_pretrained(
-            self._base_model, num_labels=1, torch_dtype=torch.bfloat16
+            self._base_model, num_labels=1
         )
         self.model.classifier = TanhClassificationHead(self.model.classifier)
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
@@ -277,11 +277,18 @@ def vf_train(
         dataset_path: pathlib.Path,
         action_value_fn_path: str,
         vf_output_path: pathlib.Path,
+        value_checkpoints_path: pathlib.Path,
         device: str
 ) -> Dict[str, Any]:
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
     tokenized_dataset = tokenized_dataset.shuffle()
-    training_args = TrainingArguments(num_train_epochs=1, learning_rate=1e-5, gradient_checkpointing=True)
+    training_args = TrainingArguments(
+        num_train_epochs=1,
+        output_dir=value_checkpoints_path,
+        overwrite_output_dir=True,
+        learning_rate=1e-5,
+        gradient_checkpointing=True
+    )
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
     action_value_fn.load()
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
@@ -373,18 +380,21 @@ def policy_train(
     qwen.load()
 
     training_args = DPOConfig(
+        loss_type="robust",
+        label_smoothing=0.1,
         per_device_train_batch_size=4,
-        gradient_accumulation_steps=8,
+        gradient_accumulation_steps=1,
         warmup_ratio=0.1,
         num_train_epochs=1,
         max_length=1024,
         fp16=False,
         bf16=True,
         logging_steps=1,
-        optim="adamw_8bit",
+        optim="adamw_torch",
         output_dir=checkpoints_dir,
-        beta=0.1,
-        learning_rate=5e-7,
+        overwrite_output_dir=True,
+        beta=0.15,
+        learning_rate=1e-6,
         max_prompt_length=128,
     )
 
@@ -504,6 +514,8 @@ if __name__ == "__main__":
     judge = OllamaAgent(model="qwen3:32b", client=Client(args.ollama_client))
 
     stf_pretrained = train_dir / "stf" / "pretrained"
+    policy_checkpoints = train_dir / "policy_checkpoints"
+    value_checkpoints = train_dir / "value_checkpoints"
 
     if not stf_pretrained.exists():
         print(f" -------------------- ------------------ starting STF -------------------- ------------------")
@@ -521,7 +533,6 @@ if __name__ == "__main__":
         action_vfn_model_dir = train_it_dir / "action_value_fn"
         dpo_dataset = train_it_dir / "dpo_dataset.json"
         policy_model_dir = train_it_dir / "policy_fn"
-        policy_checkpoints = train_it_dir / "policy_checkpoints"
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
         current_policy_path = previous_iteration / "policy_fn" if i > 0 else stf_pretrained
@@ -585,6 +596,7 @@ if __name__ == "__main__":
                     dataset_path,
                     str(current_vf_step_path),
                     vf_target_path,
+                    value_checkpoints,
                     device="cuda"
                 )
 
