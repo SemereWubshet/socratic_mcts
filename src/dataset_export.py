@@ -23,6 +23,7 @@ if __name__ == "__main__":
             input_dir.glob("evaluation_300_2/eval_*.json"),
             input_dir.glob("evaluation_600_3/eval_*.json"),
             input_dir.glob("evaluation_1000_4/eval_*.json"),
+            input_dir.glob("evaluation_600_4/eval_*.json"),
     ):
         eval_dataset = EvaluationDataset.model_validate_json(json_file.read_text())
 
