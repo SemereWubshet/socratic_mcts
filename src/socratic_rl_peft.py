@@ -267,15 +267,13 @@ def vf_rollout(
 
 def vf_train(
         dataset_path: pathlib.Path,
-        value_checkpoints_path: pathlib.Path,
         action_value_fn_path: str,
         vf_output_path: pathlib.Path,
         device: str
 ) -> Dict[str, Any]:
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
     tokenized_dataset = tokenized_dataset.shuffle()
-    training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5,
-                                      gradient_checkpointing=True)
+    training_args = TrainingArguments(num_train_epochs=1, learning_rate=1e-5, gradient_checkpointing=True)
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
     action_value_fn.load()
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
@@ -513,7 +511,6 @@ if __name__ == "__main__":
         interactions_path = train_it_dir / "interactions.json"
         evaluations_path = train_it_dir / "evaluations.json"
         action_vfn_model_dir = train_it_dir / "action_value_fn"
-        value_checkpoints = train_it_dir / "value_checkpoints"
         dpo_dataset = train_it_dir / "dpo_dataset.json"
         policy_model_dir = train_it_dir / "policy_fn"
         policy_checkpoints = train_it_dir / "policy_checkpoints"
@@ -578,7 +575,6 @@ if __name__ == "__main__":
 
                 d = vf_train(
                     dataset_path,
-                    value_checkpoints / f"it_{j}",
                     str(current_vf_step_path),
                     vf_target_path,
                     device="cuda"
