@@ -273,6 +273,7 @@ def vf_train(
         device: str
 ) -> Dict[str, Any]:
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
+    tokenized_dataset = tokenized_dataset.shuffle()
     training_args = TrainingArguments(output_dir=value_checkpoints_path, num_train_epochs=1, learning_rate=1e-5,
                                       gradient_checkpointing=True)
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
@@ -360,6 +361,7 @@ def policy_train(
 ) -> Dict[str, Any]:
     dict_train_dataset = json.loads(dataset_path.read_text(encoding="UTF-8"))
     train_dataset = Dataset.from_dict(dict_train_dataset)
+    train_dataset = train_dataset.shuffle()
 
     qwen = Qwen(str(policy_path))
     qwen.load()
