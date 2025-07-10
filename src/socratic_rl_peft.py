@@ -208,17 +208,18 @@ def rollout(
         ollama_client: str,
         max_interactions: int
 ) -> None:
-    nemo = OllamaAgent(model="mistral-small3.1:24b", client=Client(ollama_client))
+    student_llm = OllamaAgent(model="mistral-small3.1:24b", client=Client(ollama_client))
     seed_dataset = SeedDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
 
     model = Qwen(base_model=str(policy_path))
 
     interactions_dataset = gen_teacher_student_interactions(
-        seed_dataset, nemo, SimpleTeacher(model), max_interactions=max_interactions
+        seed_dataset, student_llm, SimpleTeacher(model), max_interactions=max_interactions
     )
     output_path.write_text(interactions_dataset.model_dump_json(indent=4))
 
     model.unload()
+    student_llm.unload()
 
 
 def vf_rollout(
@@ -569,6 +570,7 @@ if __name__ == "__main__":
             interactions_dataset = InteractionDataset.model_validate_json(interactions_path.read_text())
             evaluations_dataset = evaluate(interactions_dataset, judge, max_interactions=args.max_interactions)
             evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
+            judge.unload()
 
             print(f"\nAvg. perf. {i}: {evaluations_dataset.avg_performance()}\n", flush=True)
             stats["avg_perf"] = evaluations_dataset.avg_performance()
