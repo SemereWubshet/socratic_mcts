@@ -252,7 +252,7 @@ def vf_rollout(
         all_targets.extend(value_targets)
 
     hf_dataset = Dataset.from_dict(dataset)
-    tokenized_dataset = hf_dataset.map(action_value_fn.batch_tokenize, batched=True, batch_size=8).shuffle()
+    tokenized_dataset = hf_dataset.map(action_value_fn.batch_tokenize, batched=True, batch_size=8)
     tokenized_dataset.save_to_disk(output_path)
 
     action_value_fn.unload()
