@@ -13,6 +13,7 @@ import torch
 import unsloth
 from datasets import load_dataset, Dataset
 from ollama import Client
+from torch import nn
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, \
     AutoModelForSequenceClassification
@@ -53,11 +54,15 @@ def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
     return scipy.signal.lfilter([1], [1, float(-gamma)], x[::-1], axis=0)[::-1]
 
 
-class TanhOutputModel(AutoModelForSequenceClassification):
-    def forward(self, *args, **kwargs):
-        output = super().forward(*args, **kwargs)
-        output.logits = torch.tanh(output.logits)
-        return output
+class TanhClassificationHead(nn.Module):
+
+    def __init__(self, original_head: nn.Module):
+        super().__init__()
+        self.original_head = original_head
+        self.activation = nn.Tanh()
+
+    def forward(self, x):
+        return self.activation(self.original_head(x))
 
 
 class ActionValueFn:
@@ -102,7 +107,10 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = TanhOutputModel.from_pretrained(self._base_model, num_labels=1, torch_dtype=torch.bfloat16)
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            self._base_model, num_labels=1, torch_dtype=torch.bfloat16
+        )
+        self.model.classifier = TanhClassificationHead(self.model.classifier)
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.tokenizer.chat_template = (
