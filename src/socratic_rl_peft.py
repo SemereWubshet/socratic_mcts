@@ -488,7 +488,7 @@ if __name__ == "__main__":
         "--ollama-client", type=str, default="http://atlas1api.eurecom.fr", help="Address to ollama server"
     )
     parser.add_argument(
-        "--vf-training-it", type=int, default=6, help="Number of action-value function training steps"
+        "--vf-training-it", type=int, default=1, help="Number of action-value function training steps"
     )
     parser.add_argument(
         "--base-model", type=str, default="phi4", choices=["phi4", "smollm"], help="Base model for PEFT"
