@@ -53,6 +53,13 @@ def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
     return scipy.signal.lfilter([1], [1, float(-gamma)], x[::-1], axis=0)[::-1]
 
 
+class TanhOutputModel(AutoModelForSequenceClassification):
+    def forward(self, *args, **kwargs):
+        output = super().forward(*args, **kwargs)
+        output.logits = torch.tanh(output.logits)
+        return output
+
+
 class ActionValueFn:
 
     def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None):
@@ -95,7 +102,7 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = AutoModelForSequenceClassification.from_pretrained(self._base_model, num_labels=1)
+        self.model = TanhOutputModel.from_pretrained(self._base_model, num_labels=1)
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.tokenizer.chat_template = (
