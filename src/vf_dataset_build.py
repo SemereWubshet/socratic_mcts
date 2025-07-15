@@ -34,6 +34,9 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.value = nn.Tanh()
 
+        print(config.hidden_size)
+        print(config.num_labels)
+
         # Initialize weights and apply final processing
         self.post_init()
 
