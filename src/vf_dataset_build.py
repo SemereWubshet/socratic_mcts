@@ -17,14 +17,15 @@ from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig, \
-    ModernBertPreTrainedModel, ModernBertModel
+    ModernBertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
-from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
+from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead, \
+    ModernBertForSequenceClassification, ModernBertPreTrainedModel
 
 
-class ActionValueFunctionModel(ModernBertPreTrainedModel):
+class ActionValueFunctionModel(ModernBertForSequenceClassification):
     def __init__(self, config: ModernBertConfig):
-        super().__init__(config)
+        super(ModernBertPreTrainedModel, self).__init__(config)
         self.num_labels = config.num_labels
         self.config = config
 
