@@ -7,39 +7,106 @@ import random
 import shutil
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 
 import numpy as np
 import scipy
 import torch
 from datasets import Dataset
+from torch import nn
+from torch.nn import MSELoss
 from tqdm import tqdm
-from transformers import AutoTokenizer, TrainingArguments, Trainer, PreTrainedModel, \
-    ModernBertConfig
+from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig, \
+    ModernBertPreTrainedModel, ModernBertModel
+from transformers.modeling_outputs import SequenceClassifierOutput
+from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 
 
-class ActionValueFunctionModel(PreTrainedModel):
-    config_class = ModernBertConfig
-
-    def __init__(self, base_model: str, config):
+class ActionValueFunctionModel(ModernBertPreTrainedModel):
+    def __init__(self, config: ModernBertConfig):
         super().__init__(config)
-        # Load original base model as a submodule (reusing config)
-        from transformers import AutoModelForSequenceClassification
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            base_model,
-            num_labels=1
-        )
+        self.num_labels = config.num_labels
+        self.config = config
 
-    def forward(self, input_ids, attention_mask, labels=None):
-        output = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-        values = torch.tanh(output.logits)
-        output.logits = values
+        self.model = ModernBertModel(config)
+        self.head = ModernBertPredictionHead(config)
+        self.drop = torch.nn.Dropout(config.classifier_dropout)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(
+            self,
+            input_ids: Optional[torch.LongTensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            sliding_window_mask: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.Tensor] = None,
+            inputs_embeds: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            indices: Optional[torch.Tensor] = None,
+            cu_seqlens: Optional[torch.Tensor] = None,
+            max_seqlen: Optional[int] = None,
+            batch_size: Optional[int] = None,
+            seq_len: Optional[int] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
+            **kwargs,
+    ) -> Union[tuple[torch.Tensor], SequenceClassifierOutput]:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        self._maybe_set_compile()
+
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            sliding_window_mask=sliding_window_mask,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            indices=indices,
+            cu_seqlens=cu_seqlens,
+            max_seqlen=max_seqlen,
+            batch_size=batch_size,
+            seq_len=seq_len,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        last_hidden_state = outputs[0]
+
+        if self.config.classifier_pooling == "cls":
+            last_hidden_state = last_hidden_state[:, 0]
+        elif self.config.classifier_pooling == "mean":
+            last_hidden_state = (last_hidden_state * attention_mask.unsqueeze(-1)).sum(dim=1) / attention_mask.sum(
+                dim=1, keepdim=True
+            )
+
+        pooled_output = self.head(last_hidden_state)
+        pooled_output = self.drop(pooled_output)
+        values = torch.tanh(self.classifier(pooled_output))
+
+        loss = None
         if labels is not None:
-            loss = torch.nn.functional.mse_loss(values, labels)
-            output.loss = loss
-            output.logits = values
-            return output
-        return output
+            if self.config.problem_type is None:
+                if self.num_labels != 1:
+                    raise ValueError(f"Number of output labels must be 1, but found {self.num_labels}")
+                self.config.problem_type = "regression"
+
+            if self.config.problem_type != "regression":
+                raise ValueError(f"This is a regression model, but found {self.config.problem_type}")
+            loss_fct = MSELoss()
+            loss = loss_fct(values.squeeze(), labels.squeeze())
+
+        if not return_dict:
+            output = (values,)
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=values,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
 
 
 class ActionValueFn:
