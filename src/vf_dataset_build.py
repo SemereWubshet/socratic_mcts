@@ -140,8 +140,6 @@ def vf_rollout(
             ] for z in range(1, math.ceil(len(history) / 2))
         ]
         values = [action_value_fn(h) for h in trajectory]
-        if len(trajectory) == 0:
-            print(history)
 
         gamma = 1.
         _lambda = 0.9
@@ -220,7 +218,7 @@ if __name__ == "__main__":
         data = json.loads(trace)
         chat_history: List[Dict[str, str]] = data['evaluation']['interaction']['chat_history']
         formatted = []
-        for h in chat_history[:-1]:
+        for h in chat_history:
             role = "user" if h["role"] == "Student" else "assistant"
             formatted.append({"role": role, "content": h["content"]})
         messages.append(
