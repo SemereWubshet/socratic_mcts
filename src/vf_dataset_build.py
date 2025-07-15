@@ -237,6 +237,7 @@ if __name__ == "__main__":
     print()
     print("#### VF training")
     stats["vf_training"] = {"vf_loss": [], "explained_var": [], "train": []}
+    stats["vf_eval"] = {"vf_loss": [], "explained_var": []}
     for j in range(args.vf_training_it):
         vf_training_path = train_dir / "vf_training"
         current_vf_step_path = (
