@@ -244,6 +244,8 @@ def vf_rollout(
 
         dataset["history"].extend(trajectory)
         dataset["labels"].extend(value_targets.astype(np.float16))
+        print(values)
+        print(vf_preds)
         print(value_targets)
         print(dataset["labels"])
 
