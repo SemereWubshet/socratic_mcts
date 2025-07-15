@@ -31,7 +31,7 @@ class ActionValueFunctionModel(PreTrainedModel):
         )
 
     def forward(self, **kwargs):
-        logits = self.model(**kwargs)
+        logits = self.model(**kwargs).logits
         values = torch.tanh(logits)  # apply tanh always
         if "labels" in kwargs:
             loss = torch.nn.functional.mse_loss(values, kwargs["labels"])
