@@ -124,10 +124,9 @@ def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
 def vf_rollout(
         input_dataset: List[Dict[str, Any]],
         action_vf_path: str,
-        output_path: pathlib.Path,
-        device: str
+        output_path: Optional[pathlib.Path] = None
 ) -> Dict[str, Any]:
-    action_value_fn = ActionValueFn(action_vf_path, max_length=2048, gpu=device)
+    action_value_fn = ActionValueFn(action_vf_path, max_length=2048, gpu="cuda")
 
     all_preds = []
     all_targets = []
@@ -158,9 +157,10 @@ def vf_rollout(
         all_preds.extend(vf_preds)
         all_targets.extend(value_targets)
 
-    hf_dataset = Dataset.from_dict(dataset)
-    tokenized_dataset = hf_dataset.map(action_value_fn.batch_tokenize, batched=True, batch_size=8)
-    tokenized_dataset.save_to_disk(output_path)
+    if output_path is not None:
+        hf_dataset = Dataset.from_dict(dataset)
+        tokenized_dataset = hf_dataset.map(action_value_fn.batch_tokenize, batched=True, batch_size=8)
+        tokenized_dataset.save_to_disk(output_path)
 
     action_value_fn.unload()
 
@@ -247,12 +247,12 @@ if __name__ == "__main__":
         vf_target_path = vf_training_path / f"it_{j}" / "value_fn"
 
         dataset_path = vf_training_path / f"it_{j}" / "dataset"
-        d = vf_rollout(train, str(current_vf_step_path), dataset_path, "cuda")
+        d = vf_rollout(train, str(current_vf_step_path), dataset_path)
 
         stats["vf_training"]["vf_loss"].append(d["vf_loss"])
         stats["vf_training"]["explained_var"].append(d["explained_var"])
 
-        d = vf_rollout(test, str(current_vf_step_path), dataset_path, "cuda")
+        d = vf_rollout(test, str(current_vf_step_path))
         stats["vf_eval"]["vf_loss"].append(d["vf_loss"])
         stats["vf_eval"]["explained_var"].append(d["explained_var"])
 
