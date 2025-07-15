@@ -173,7 +173,7 @@ class ActionValueFn:
         self.model.resize_token_embeddings(len(self.tokenizer))
 
         for name, param in self.model.named_parameters():
-            if name == "classifier.bias":
+            if name.startswith("classifier."):
                 print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
     def unload(self) -> None:
