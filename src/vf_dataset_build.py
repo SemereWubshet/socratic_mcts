@@ -17,7 +17,7 @@ from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig, \
-    ModernBertPreTrainedModel, ModernBertModel, PretrainedConfig
+    ModernBertPreTrainedModel, ModernBertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 
@@ -113,10 +113,10 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
 
 class ActionValueFn:
 
-    def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None):
+    def __init__(self, base_model: str, max_length: int = 1024):
         self._max_length = max_length
         self._base_model = base_model
-        self.device = torch.device(gpu) if gpu is not None else None
+        self.device = torch.device("cuda")
         self.model = None
         self.tokenizer = None
 
@@ -133,9 +133,8 @@ class ActionValueFn:
             "attention_mask": tokenized.attention_mask
         }
 
-        if self.device is not None:
-            inputs["input_ids"] = inputs["input_ids"].to(self.device)
-            inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
+        inputs["input_ids"] = inputs["input_ids"].to(self.device)
+        inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         with torch.no_grad():
             value = float(self.model(**inputs).logits)
@@ -155,9 +154,10 @@ class ActionValueFn:
     def load(self) -> None:
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            num_labels = 1,
+            num_labels=1,
             torch_dtype=torch.bfloat16,
-            use_bfloat16=True
+            use_bfloat16=True,
+            device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -170,8 +170,6 @@ class ActionValueFn:
             "{% endfor %}"
         )
         self.model.resize_token_embeddings(len(self.tokenizer))
-        if self.device is not None:
-            self.model = self.model.to(self.device)
 
         for name, param in self.model.named_parameters():
             if name == "classifier.bias":
@@ -283,7 +281,7 @@ def vf_train(
         learning_rate=1e-5,
         gradient_checkpointing=True
     )
-    action_value_fn = ActionValueFn(action_value_fn_path, max_length=2048, gpu=device)
+    action_value_fn = ActionValueFn(action_value_fn_path, max_length=2048)
     action_value_fn.load()
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
     results = trainer.train()
@@ -338,7 +336,7 @@ if __name__ == "__main__":
 
     vf_training_path = train_dir / "vf_training"
 
-    action_value_fn = ActionValueFn("answerdotai/ModernBERT-large", max_length=2048, gpu="cuda")
+    action_value_fn = ActionValueFn("answerdotai/ModernBERT-large", max_length=2048)
     action_value_fn.load()
     action_value_fn.save(vf_training_path / "it_0" / "value_fn")
     action_value_fn.unload()
