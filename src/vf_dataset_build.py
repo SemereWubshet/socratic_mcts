@@ -155,7 +155,7 @@ class ActionValueFn:
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
             num_labels=1,
-            torch_dtype=torch.float,
+            torch_dtype=torch.float16,
             problem_type="regression",
             device_map="cuda"
         )
@@ -243,7 +243,7 @@ def vf_rollout(
         value_targets = advantages + vf_preds
 
         dataset["history"].extend(trajectory)
-        dataset["labels"].extend(value_targets)
+        dataset["labels"].extend(value_targets.astype(np.float16))
 
         all_preds.extend(vf_preds)
         all_targets.extend(value_targets)
