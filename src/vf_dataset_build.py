@@ -231,7 +231,7 @@ def vf_rollout(
                 {"role": h["role"], "content": h["content"]} for h in history[:2 * z]
             ] for z in range(1, math.ceil(len(history) / 2))
         ]
-        values = [action_value_fn(h).cpu().data.numpy() for h in trajectory]
+        values = [float(action_value_fn(h)) for h in trajectory]
 
         gamma = 1.
         _lambda = 0.9
