@@ -249,8 +249,10 @@ def vf_rollout(
     all_targets = np.array(all_targets)
     vf_loss = float(np.mean((all_preds - all_targets) ** 2))
     explained_var = float(1 - np.var(all_targets - all_preds) / (np.var(all_targets) + 1e-8))
+    _min = np.min(all_preds)
+    _max = np.max(all_preds)
 
-    return {"vf_loss": vf_loss, "explained_var": explained_var}
+    return {"vf_loss": vf_loss, "explained_var": explained_var, "min": _min, "max": _max}
 
 
 def vf_train(
@@ -326,8 +328,8 @@ if __name__ == "__main__":
 
     print()
     print("#### VF training")
-    stats["vf_training"] = {"vf_loss": [], "explained_var": [], "train": []}
-    stats["vf_eval"] = {"vf_loss": [], "explained_var": []}
+    stats["vf_training"] = {"vf_loss": [], "explained_var": [], "train": [], "min": [], "max": []}
+    stats["vf_eval"] = {"vf_loss": [], "explained_var": [], "min": [], "max": []}
     for j in range(args.vf_training_it):
         vf_training_path = train_dir / "vf_training"
         current_vf_step_path = (
@@ -342,10 +344,14 @@ if __name__ == "__main__":
 
         stats["vf_training"]["vf_loss"].append(d["vf_loss"])
         stats["vf_training"]["explained_var"].append(d["explained_var"])
+        stats["vf_training"]["min"].append(d["min"])
+        stats["vf_training"]["max"].append(d["max"])
 
         d = vf_rollout(test, str(current_vf_step_path))
         stats["vf_eval"]["vf_loss"].append(d["vf_loss"])
         stats["vf_eval"]["explained_var"].append(d["explained_var"])
+        stats["vf_eval"]["min"].append(d["min"])
+        stats["vf_eval"]["max"].append(d["max"])
 
         print()
         print(f"dataset_path={dataset_path}")
