@@ -120,7 +120,7 @@ class ActionValueFn:
         self.model = None
         self.tokenizer = None
 
-    def __call__(self, history: List[Dict[str, str]]) -> float:
+    def __call__(self, history: List[Dict[str, str]]):
         if getattr(self, "model", None) is None or self.tokenizer is None:
             self.load()
 
@@ -137,7 +137,7 @@ class ActionValueFn:
         inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         with torch.no_grad():
-            value = float(self.model(**inputs).logits)
+            value = self.model(**inputs).logits
 
         return value
 
