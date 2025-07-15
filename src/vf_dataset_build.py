@@ -234,7 +234,7 @@ def vf_rollout(
         values = [float(action_value_fn(h)) for h in trajectory]
 
         gamma = 1.
-        _lambda = 0.9
+        _lambda = 0.3
         vf_preds = np.array(values, dtype=np.float32)
         rwd = np.zeros(vf_preds.shape[0], dtype=np.float32)
         rwd[-1] = np.float32(1. if assessment else -1.)
