@@ -301,9 +301,9 @@ if __name__ == "__main__":
     parser.add_argument("--clean", action="store_true", help="Clean root_dir if it exists")
     args = parser.parse_args()
 
-    train_dir = args.output_dir
+    train_dir: Path = args.output_dir
 
-    if args.clean:
+    if args.clean and train_dir.exists() and train_dir.is_dir():
         for child in train_dir.iterdir():
             if child.is_file():
                 child.unlink()
