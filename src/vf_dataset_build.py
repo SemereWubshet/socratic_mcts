@@ -30,12 +30,12 @@ class ActionValueFunctionModel(PreTrainedModel):
             num_labels=1
         )
 
-    def forward(self, **kwargs):
-        output = self.model(**kwargs)
+    def forward(self, input_ids, attention_mask, labels=None):
+        output = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         values = torch.tanh(output.logits)
         output.logits = values
-        if "labels" in kwargs:
-            loss = torch.nn.functional.mse_loss(values, kwargs["labels"])
+        if labels is not None:
+            loss = torch.nn.functional.mse_loss(values, labels)
             output.loss = loss
             output.logits = values
             return output
@@ -87,11 +87,15 @@ class ActionValueFn:
         self.model = ActionValueFunctionModel(self._base_model, ModernBertConfig())
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
         self.tokenizer.chat_template = (
-            "{% for message in messages if not message['role'] == 'system' %}"
-            "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
+            "{% for i in range(0, messages|length, 2) %}"
+            "{% if i + 1 < messages|length %}"
+            "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
+            "{% endif %}"
             "{% endfor %}"
         )
+        self.model.resize_token_embeddings(len(self.tokenizer))
         if self.device is not None:
             self.model = self.model.to(self.device)
 
