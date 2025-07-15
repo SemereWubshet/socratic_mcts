@@ -30,8 +30,8 @@ class ActionValueFunctionModel(PreTrainedModel):
             num_labels=1
         )
 
-    def forward(self, tensor, labels=None):
-        logits = self.model(tensor)
+    def forward(self, input_ids, labels=None):
+        logits = self.model(input_ids)
         values = torch.tanh(logits)  # apply tanh always
         if labels is not None:
             loss = torch.nn.functional.mse_loss(values, labels)
