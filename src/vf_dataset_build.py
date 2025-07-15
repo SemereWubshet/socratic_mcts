@@ -35,9 +35,6 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.value = nn.Tanh()
 
-        print(config.hidden_size)
-        print(config.num_labels)
-
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -86,17 +83,10 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
                 dim=1, keepdim=True
             )
 
-        print(" -- here -- ")
-        print(last_hidden_state)
         pooled_output = self.head(last_hidden_state)
-        print(pooled_output)
         pooled_output = self.drop(pooled_output)
-        print(pooled_output)
         pooled_output = self.classifier(pooled_output)
-        print(pooled_output)
         value = self.value(pooled_output)
-        print(value)
-        print(" -- here -- ")
 
         loss = None
         if labels is not None:
@@ -149,7 +139,6 @@ class ActionValueFn:
 
         with torch.no_grad():
             value = self.model(**inputs).logits
-            print(value)
 
         return value
 
@@ -256,10 +245,6 @@ def vf_rollout(
 
         dataset["history"].extend(trajectory)
         dataset["labels"].extend(value_targets.astype(np.float32))
-        print(values)
-        print(vf_preds)
-        print(value_targets)
-        print(dataset["labels"])
 
         all_preds.extend(vf_preds)
         all_targets.extend(value_targets)
