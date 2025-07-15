@@ -101,6 +101,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
             output = (values,)
             return ((loss,) + output) if loss is not None else output
 
+        print(values)
         return SequenceClassifierOutput(
             loss=loss,
             logits=values,
