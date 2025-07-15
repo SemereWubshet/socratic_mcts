@@ -156,7 +156,7 @@ class ActionValueFn:
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
             num_labels=1,
-            torch_dtype=torch.float32,
+            torch_dtype=torch.float16,
             problem_type="regression",
             device_map="cuda"
         )
@@ -244,7 +244,7 @@ def vf_rollout(
         value_targets = advantages + vf_preds
 
         dataset["history"].extend(trajectory)
-        dataset["labels"].extend(value_targets.astype(np.float32))
+        dataset["labels"].extend(value_targets.astype(np.float16))
 
         all_preds.extend(vf_preds)
         all_targets.extend(value_targets)
@@ -270,8 +270,7 @@ def vf_train(
         dataset_path: pathlib.Path,
         action_value_fn_path: str,
         vf_output_path: pathlib.Path,
-        value_checkpoints_path: pathlib.Path,
-        device: str
+        value_checkpoints_path: pathlib.Path
 ) -> Dict[str, Any]:
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
     tokenized_dataset = tokenized_dataset.shuffle()
@@ -376,8 +375,7 @@ if __name__ == "__main__":
             dataset_path,
             str(current_vf_step_path),
             vf_target_path,
-            train_dir / "vf_checkpoints",
-            device="cuda"
+            train_dir / "vf_checkpoints"
         )
 
         stats["vf_training"]["train"].append(d)
