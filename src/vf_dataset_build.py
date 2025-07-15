@@ -12,6 +12,7 @@ import numpy as np
 import scipy
 import torch
 from datasets import Dataset
+from torch import nn
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, TrainingArguments, Trainer
 
