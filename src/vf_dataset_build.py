@@ -30,12 +30,12 @@ class ActionValueFunctionModel(PreTrainedModel):
             num_labels=1
         )
 
-    def forward(self, **kwargs):
-        output = self.model(**kwargs)
+    def forward(self, input_ids, attention_mask, labels=None):
+        output = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         values = torch.tanh(output.logits)
         output.logits = values
-        if "labels" in kwargs:
-            loss = torch.nn.functional.mse_loss(values, kwargs["labels"])
+        if labels is not None:
+            loss = torch.nn.functional.mse_loss(values, labels)
             output.loss = loss
             output.logits = values
             return output
