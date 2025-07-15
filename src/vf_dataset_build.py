@@ -31,7 +31,8 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         self.model = ModernBertModel(config)
         self.head = ModernBertPredictionHead(config)
         self.drop = torch.nn.Dropout(config.classifier_dropout)
-        self.classifier = nn.Tanh(nn.Linear(config.hidden_size, config.num_labels))
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.value = nn.Tanh()
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -83,7 +84,8 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
 
         pooled_output = self.head(last_hidden_state)
         pooled_output = self.drop(pooled_output)
-        values = self.classifier(pooled_output)
+        pooled_output = self.classifier(pooled_output)
+        value = self.value(pooled_output)
 
         loss = None
         if labels is not None:
@@ -95,16 +97,16 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
             if self.config.problem_type != "regression":
                 raise ValueError(f"This is a regression model, but found {self.config.problem_type}")
             loss_fct = MSELoss()
-            loss = loss_fct(values.squeeze(), labels.squeeze())
+            loss = loss_fct(value.squeeze(), labels.squeeze())
 
         if not return_dict:
-            output = (values,)
+            output = (value,)
             return ((loss,) + output) if loss is not None else output
 
-        print(values)
+        print(value)
         return SequenceClassifierOutput(
             loss=loss,
-            logits=values,
+            logits=value,
             hidden_states=outputs.hidden_states,
             attentions=outputs.attentions,
         )
