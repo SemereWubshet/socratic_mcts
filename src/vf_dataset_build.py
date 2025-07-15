@@ -17,7 +17,7 @@ from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig, \
-    ModernBertPreTrainedModel, ModernBertModel, AutoModelForSequenceClassification
+    ModernBertPreTrainedModel, ModernBertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 
@@ -37,6 +37,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
+    @torch.autocast(device_type="cuda")
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,
