@@ -338,24 +338,32 @@ if __name__ == "__main__":
     # TODO: rebalance accept/reject test dataset?
     train, test = messages[:split], messages[split:]
 
+    vf_training_path = train_dir / "vf_training"
+
+    action_value_fn = ActionValueFn("answerdotai/ModernBERT-large", max_length=2048, gpu="cuda")
+    action_value_fn.load()
+    action_value_fn.save(vf_training_path / "it_0" / "value_fn")
+    action_value_fn.unload()
+    del action_value_fn
+
     stats = {}
 
     print()
     print("#### VF training")
     stats["vf_training"] = {"vf_loss": [], "explained_var": [], "train": [], "min": [], "max": []}
     stats["vf_eval"] = {"vf_loss": [], "explained_var": [], "min": [], "max": []}
-    for j in range(args.vf_training_it):
-        vf_training_path = train_dir / "vf_training"
-        current_vf_step_path = (
-            "answerdotai/ModernBERT-large" if j == 0
-            else vf_training_path / f"it_{j - 1}" / "value_fn"
-        )
-
+    for j in range(1, args.vf_training_it + 1):
+        current_vf_step_path = vf_training_path / f"it_{j - 1}" / "value_fn"
         vf_target_path = vf_training_path / f"it_{j}" / "value_fn"
-
         dataset_path = vf_training_path / f"it_{j}" / "dataset"
-        d = vf_rollout(train, str(current_vf_step_path), dataset_path)
 
+        print()
+        print(f"dataset_path={dataset_path}")
+        print(f"current_vf_step_path={current_vf_step_path}")
+        print(f"vf_target_path={vf_target_path}")
+        print()
+
+        d = vf_rollout(train, str(current_vf_step_path), dataset_path)
         stats["vf_training"]["vf_loss"].append(d["vf_loss"])
         stats["vf_training"]["explained_var"].append(d["explained_var"])
         stats["vf_training"]["min"].append(d["min"])
@@ -366,12 +374,6 @@ if __name__ == "__main__":
         stats["vf_eval"]["explained_var"].append(d["explained_var"])
         stats["vf_eval"]["min"].append(d["min"])
         stats["vf_eval"]["max"].append(d["max"])
-
-        print()
-        print(f"dataset_path={dataset_path}")
-        print(f"current_vf_step_path={current_vf_step_path}")
-        print(f"vf_target_path={vf_target_path}")
-        print()
 
         d = vf_train(
             dataset_path,
