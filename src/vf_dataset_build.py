@@ -151,7 +151,7 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = ActionValueFunctionModel(self._base_model, ModernBertConfig())
+        self.model = ActionValueFunctionModel(ModernBertConfig(name_or_path=self._base_model))
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.tokenizer.chat_template = (
