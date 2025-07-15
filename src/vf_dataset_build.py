@@ -85,6 +85,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         pooled_output = self.head(last_hidden_state)
         pooled_output = self.drop(pooled_output)
         pooled_output = self.classifier(pooled_output)
+        print(pooled_output)
         value = self.value(pooled_output)
         print(value)
 
