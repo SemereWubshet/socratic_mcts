@@ -86,6 +86,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         pooled_output = self.drop(pooled_output)
         pooled_output = self.classifier(pooled_output)
         value = self.value(pooled_output)
+        print(value)
 
         loss = None
         if labels is not None:
@@ -138,6 +139,7 @@ class ActionValueFn:
 
         with torch.no_grad():
             value = self.model(**inputs).logits
+            print(value)
 
         return value
 
