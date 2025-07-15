@@ -520,6 +520,9 @@ if __name__ == "__main__":
 
     if not stf_pretrained.exists():
         print(f" -------------------- ------------------ starting STF -------------------- ------------------")
+        print(f"std_dataset={args.stf_dataset}")
+        print(f"train_dir={train_dir}")
+        print(f"stf_pretrained={stf_pretrained}")
         stf_warmup(args.stf_dataset, train_dir, stf_pretrained)
 
     textbooks = load_dataset("princeton-nlp/TextbookChapters")
@@ -548,6 +551,18 @@ if __name__ == "__main__":
             stats: Dict[str, Any] = {"it": i}
 
         print(f" -------------------- ------------------ starting it {i} -------------------- ------------------")
+
+        print(f"train_it_dir={train_it_dir}")
+        print(f"stats_path={stats_path}")
+        print(f"seeds_path={seeds_path}")
+        print(f"interactions_path={interactions_path}")
+        print(f"evaluations_path={evaluations_path}")
+        print(f"action_vfn_model_dir={action_vfn_model_dir}")
+        print(f"dpo_dataset={dpo_dataset}")
+        print(f"policy_model_dir={policy_model_dir}")
+        print(f"previous_iteration={previous_iteration}")
+        print(f"current_policy_path={current_policy_path}")
+        print(f"current_vf_path={current_vf_path}")
 
         if not seeds_path.exists():
             seed_dataset = gen_seeds(textbooks, student, num_of_conversations=args.num_conversations)
@@ -594,6 +609,12 @@ if __name__ == "__main__":
                 stats["vf_training"]["vf_loss"].append(d["vf_loss"])
                 stats["vf_training"]["explained_var"].append(d["explained_var"])
 
+                print(f"evaluations_path={evaluations_path}")
+                print(f"dataset_path={dataset_path}")
+                print(f"current_vf_step_path={current_vf_step_path}")
+                print(f"vf_target_path={vf_target_path}")
+                print(f"dataset_path={value_checkpoints}")
+
                 d = vf_train(
                     dataset_path,
                     str(current_vf_step_path),
@@ -607,6 +628,12 @@ if __name__ == "__main__":
         if not dpo_dataset.exists():
             print()
             print("#### Preparing for DPO training")
+
+            print(f"evaluations_path={evaluations_path}")
+            print(f"action_vfn_model_dir={action_vfn_model_dir}")
+            print(f"current_policy_path={current_policy_path}")
+            print(f"dpo_dataset={dpo_dataset}")
+
             stats["dpo"] = prepare_for_dpo(
                 evaluations_path,
                 action_vfn_model_dir,
@@ -617,6 +644,12 @@ if __name__ == "__main__":
 
         print()
         print("#### Policy training")
+
+        print(f"dpo_dataset={dpo_dataset}")
+        print(f"current_policy_path={current_policy_path}")
+        print(f"policy_checkpoints={policy_checkpoints}")
+        print(f"policy_model_dir={policy_model_dir}")
+
         d = policy_train(
             dpo_dataset,
             current_policy_path,
