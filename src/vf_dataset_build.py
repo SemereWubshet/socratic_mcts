@@ -257,9 +257,11 @@ if __name__ == "__main__":
         stats["vf_eval"]["vf_loss"].append(d["vf_loss"])
         stats["vf_eval"]["explained_var"].append(d["explained_var"])
 
+        print()
         print(f"dataset_path={dataset_path}")
         print(f"current_vf_step_path={current_vf_step_path}")
         print(f"vf_target_path={vf_target_path}")
+        print()
 
         d = vf_train(
             dataset_path,
