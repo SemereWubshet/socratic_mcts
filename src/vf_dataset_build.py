@@ -154,7 +154,7 @@ class ActionValueFn:
 
     def load(self) -> None:
         self.model = ActionValueFunctionModel.from_pretrained(
-            name_or_path=self._base_model,
+            pretrained_model_name_or_path=self._base_model,
             num_labels=1,
             torch_dtype=torch.bfloat16,
             use_flash_attention_2=False
