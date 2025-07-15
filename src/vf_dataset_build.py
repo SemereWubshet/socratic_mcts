@@ -31,7 +31,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         self.model = ModernBertModel(config)
         self.head = ModernBertPredictionHead(config)
         self.drop = torch.nn.Dropout(config.classifier_dropout)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.classifier = nn.Tanh(nn.Linear(config.hidden_size, config.num_labels))
 
         # Initialize weights and apply final processing
         self.post_init()
@@ -83,7 +83,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
 
         pooled_output = self.head(last_hidden_state)
         pooled_output = self.drop(pooled_output)
-        values = torch.tanh(self.classifier(pooled_output))
+        values = self.classifier(pooled_output)
 
         loss = None
         if labels is not None:
@@ -152,9 +152,7 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            self._base_model, num_labels=1, #classifier_activation="tanh"
-        )
+        self.model = ActionValueFunctionModel(ModernBertConfig(name_or_path=self._base_model, num_labels=1))
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.tokenizer.chat_template = (
