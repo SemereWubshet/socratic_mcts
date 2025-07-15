@@ -37,7 +37,6 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    @torch.autocast(device_type="cuda")
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,
