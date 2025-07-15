@@ -153,7 +153,7 @@ class ActionValueFn:
 
     def load(self) -> None:
         self.model = AutoModelForSequenceClassification.from_pretrained(
-            self._base_model, num_labels=1, classifier_activation="tanh"
+            self._base_model, num_labels=1, #classifier_activation="tanh"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
