@@ -154,12 +154,10 @@ class ActionValueFn:
 
     def load(self) -> None:
         self.model = ActionValueFunctionModel.from_pretrained(
-            ModernBertConfig(
-                name_or_path=self._base_model,
-                num_labels=1,
-                torch_dtype=torch.bfloat16,
-                use_flash_attention_2=False
-            )
+            name_or_path=self._base_model,
+            num_labels=1,
+            torch_dtype=torch.bfloat16,
+            use_flash_attention_2=False
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
