@@ -153,7 +153,7 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = ActionValueFunctionModel(
+        self.model = ActionValueFunctionModel.from_pretrained(
             ModernBertConfig(
                 name_or_path=self._base_model,
                 num_labels=1,
