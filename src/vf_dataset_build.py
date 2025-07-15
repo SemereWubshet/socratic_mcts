@@ -4,6 +4,7 @@ import json
 import math
 import pathlib
 import random
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -204,9 +205,18 @@ if __name__ == "__main__":
     parser.add_argument("--input-traces", default=Path("./datasets/socratic_traces/traces.jsonl"))
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--vf-training-it", default=10, type=int)
+    parser.add_argument("--clean", action="store_true", help="Clean root_dir if it exists")
     args = parser.parse_args()
 
     train_dir = args.output_dir
+
+    if args.clean:
+        for child in train_dir.iterdir():
+            if child.is_file():
+                child.unlink()
+            elif child.is_dir():
+                shutil.rmtree(child)
+
     train_dir.mkdir(parents=True, exist_ok=True)
 
     traces = args.input_traces.read_text().split("\n")
