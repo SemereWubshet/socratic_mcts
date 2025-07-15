@@ -175,6 +175,9 @@ class ActionValueFn:
         if self.device is not None:
             self.model = self.model.to(self.device)
 
+        for name, param in self.model.named_parameters():
+            print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
+
     def unload(self) -> None:
         if getattr(self, "model", None) is not None:
             del self.model
