@@ -158,6 +158,7 @@ class ActionValueFn:
             config=ModernBertConfig(
                 num_labels=1,
                 torch_dtype=torch.bfloat16,
+                hidden_size=1024,
                 use_flash_attention_2=False
             )
         )
