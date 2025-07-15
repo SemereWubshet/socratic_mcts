@@ -13,9 +13,31 @@ import numpy as np
 import scipy
 import torch
 from datasets import Dataset
-from torch import nn
 from tqdm import tqdm
-from transformers import AutoModelForSequenceClassification, AutoTokenizer, TrainingArguments, Trainer
+from transformers import AutoTokenizer, TrainingArguments, Trainer, PreTrainedModel, \
+    ModernBertConfig
+
+
+class ActionValueFunctionModel(PreTrainedModel):
+    config_class = ModernBertConfig
+
+    def __init__(self, base_model: str, config):
+        super().__init__(config)
+        # Load original base model as a submodule (reusing config)
+        from transformers import AutoModelForSequenceClassification
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            base_model,
+            num_labels=1
+        )
+
+    def forward(self, tensor, labels=None):
+        logits = self.model(tensor)
+        values = torch.tanh(logits)  # apply tanh always
+        if labels is not None:
+            loss = torch.nn.functional.mse_loss(values, labels)
+            return {"loss": loss, "logits": values}
+        return {"logits": values}
+
 
 class ActionValueFn:
 
@@ -44,8 +66,7 @@ class ActionValueFn:
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         with torch.no_grad():
-            logits = float(self.model(**inputs).logits)
-            value = float(torch.tanh(logits))
+            value = float(self.model(**inputs).logits)
 
         return value
 
@@ -60,9 +81,7 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            self._base_model, num_labels=1
-        )
+        self.model = ActionValueFunctionModel(self._base_model, ModernBertConfig())
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.tokenizer.chat_template = (
