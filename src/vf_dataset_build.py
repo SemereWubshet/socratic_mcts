@@ -166,7 +166,7 @@ class ActionValueFn:
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
             num_labels=1,
-            torch_dtype=torch.float16,
+            torch_dtype=torch.float32,
             problem_type="regression",
             device_map="cuda"
         )
@@ -245,8 +245,8 @@ def vf_rollout(
 
         gamma = 1.
         _lambda = 0.9
-        vf_preds = np.array(values)
-        rwd = np.zeros(vf_preds.shape[0])
+        vf_preds = np.array(values, dtype=np.float32)
+        rwd = np.zeros(vf_preds.shape[0], dtype=np.float32)
         rwd[-1] = np.float32(1. if assessment else -1.)
         vpred_t = np.concatenate((vf_preds, [0.]))
         delta_t = -vpred_t[:-1] + rwd + gamma * vpred_t[1:]
@@ -254,7 +254,7 @@ def vf_rollout(
         value_targets = advantages + vf_preds
 
         dataset["history"].extend(trajectory)
-        dataset["labels"].extend(value_targets.astype(np.float16))
+        dataset["labels"].extend(value_targets.astype(np.float32))
         print(values)
         print(vf_preds)
         print(value_targets)
