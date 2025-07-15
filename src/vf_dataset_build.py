@@ -140,6 +140,8 @@ def vf_rollout(
             ] for z in range(1, math.ceil(len(history) / 2))
         ]
         values = [action_value_fn(h) for h in trajectory]
+        if len(trajectory) == 0:
+            print(history)
 
         gamma = 1.
         _lambda = 0.9
