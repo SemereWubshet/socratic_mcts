@@ -156,7 +156,7 @@ class ActionValueFn:
             pretrained_model_name_or_path=self._base_model,
             num_labels=1,
             torch_dtype=torch.float16,
-            # use_bfloat16=False,
+            use_bfloat16=False,
             problem_type="regression",
             device_map="cuda"
         )
