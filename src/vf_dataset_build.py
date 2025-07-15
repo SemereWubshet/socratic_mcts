@@ -153,7 +153,7 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        config = PretrainedConfig.from_pretrained(self._base_model)
+        config = ModernBertConfig.from_pretrained(self._base_model)
         config.num_labels = 1
         config.torch_dtype = torch.bfloat16
         config.use_bfloat16 = True
