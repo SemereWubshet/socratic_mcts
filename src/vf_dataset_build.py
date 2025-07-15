@@ -217,7 +217,7 @@ def vf_rollout(
         action_vf_path: str,
         output_path: Optional[pathlib.Path] = None
 ) -> Dict[str, Any]:
-    action_value_fn = ActionValueFn(action_vf_path, max_length=2048, gpu="cuda")
+    action_value_fn = ActionValueFn(action_vf_path, max_length=2048)
 
     all_preds = []
     all_targets = []
