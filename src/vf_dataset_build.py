@@ -153,13 +153,11 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        config = ModernBertConfig.from_pretrained(self._base_model)
-        config.num_labels = 1
-        config.torch_dtype = torch.bfloat16
-        config.use_bfloat16 = True
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            config=config
+            num_labels = 1,
+            torch_dtype=torch.bfloat16,
+            use_bfloat16=True
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
