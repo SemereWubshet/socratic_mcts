@@ -17,7 +17,7 @@ from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig, \
-    ModernBertPreTrainedModel, ModernBertModel
+    ModernBertPreTrainedModel, ModernBertModel, AutoModelForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 
@@ -152,7 +152,9 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = ActionValueFunctionModel(ModernBertConfig(name_or_path=self._base_model))
+        self.model = AutoModelForSequenceClassification.from_pretrained(
+            self._base_model, num_labels=1, classifier_activation="tanh"
+        )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.tokenizer.chat_template = (
