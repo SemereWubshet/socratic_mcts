@@ -17,7 +17,7 @@ from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig, \
-    ModernBertPreTrainedModel, ModernBertModel
+    ModernBertPreTrainedModel, ModernBertModel, PretrainedConfig
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 
@@ -153,14 +153,13 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
+        config = PretrainedConfig.from_pretrained(self._base_model)
+        config.num_labels = 1
+        config.torch_dtype = torch.bfloat16
+        config.use_bfloat16 = True
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            config=ModernBertConfig(
-                num_labels=1,
-                torch_dtype=torch.bfloat16,
-                hidden_size=1024,
-                use_flash_attention_2=False
-            )
+            config=config
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
