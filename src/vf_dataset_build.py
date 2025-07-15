@@ -17,18 +17,6 @@ from torch import nn
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, TrainingArguments, Trainer
 
-
-class TanhClassificationHead(nn.Module):
-
-    def __init__(self, original_head: nn.Module):
-        super().__init__()
-        self.original_head = original_head
-        self.activation = nn.Tanh()
-
-    def forward(self, x):
-        return self.activation(self.original_head(x))
-
-
 class ActionValueFn:
 
     def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None):
@@ -56,7 +44,8 @@ class ActionValueFn:
             inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         with torch.no_grad():
-            value = float(self.model(**inputs).logits)
+            logits = float(self.model(**inputs).logits)
+            value = float(torch.tanh(logits))
 
         return value
 
@@ -74,7 +63,6 @@ class ActionValueFn:
         self.model = AutoModelForSequenceClassification.from_pretrained(
             self._base_model, num_labels=1
         )
-        self.model.classifier = TanhClassificationHead(self.model.classifier)
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         self.tokenizer.chat_template = (
