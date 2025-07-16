@@ -1,15 +1,156 @@
 from __future__ import annotations
 
 import abc
+import random
+import re
 from typing import List, TypeVar, Generic, Tuple, Optional, Generator, Type, Dict, Any
 
 import pydantic
 from datasets import load_dataset
 
-from agents import StudentSeed
-
 T = TypeVar('T')  # Input or current type
 U = TypeVar('U')  # Output or next type
+
+
+class LLMProcessingFailure(Exception):
+    ...
+
+
+class LLM(abc.ABC):
+
+    @abc.abstractmethod
+    def query(self, messages: List[Dict[str, str]]) -> str:
+        ...
+
+    @abc.abstractmethod
+    def healthcheck(self) -> None:
+        ...
+
+    @property
+    @abc.abstractmethod
+    def model_name(self) -> str:
+        ...
+
+    def unload(self) -> None:
+        pass
+
+
+class ConversationSeeder(abc.ABC):
+
+    @abc.abstractmethod
+    def gen_seed(self, source_content: str, **kwargs: Dict[str, str]) -> Tuple[str, str]:
+        ...
+
+    @abc.abstractmethod
+    def base_prompt(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def interaction_types(self) -> Tuple[Dict[str, str]]:
+        ...
+
+
+class ContentSeeder(ConversationSeeder):
+
+    def __init__(self, llm: LLM, max_trials: int = 10):
+        """
+        Args:
+            llm: The language model used for seed generation.
+            max_trials: Number of attempts to retry on malformed LLM output.
+        """
+        self._llm = llm
+        self._max_trials = max_trials
+
+    def base_prompt(self) -> str:
+        return (
+            "# Instructions\n"
+            "You are a student trying to gain more understanding on a class topic. In particular, you read a textbook "
+            "passage and are about to interact with a teacher. Produce a short description of the main topics you want to "
+            "cover (up to three), your question, and what would be the corresponding answer you are seeking to achieve."
+            "\n"
+            "The question must be short, concise and hint about the main topics, but without disclosing what are the main "
+            "topic to the teacher. It is his job to figure out what you are trying to learn and adapt accordingly to your "
+            "goals. {interaction_type}"
+            "\n"
+            "The question must be understandable on its own because the teacher does not have access to the textbook "
+            "passage you read."
+            "\n\n"
+            "# Output Format\n"
+            "Your evaluation must have the format [MAIN_TOPICS]A description on what are the main topics you are seeking "
+            "to learn - up to five points[\MAIN_TOPICS]The opening question[\QUESTION]. Do not output opening or closing "
+            "statements or any special formatting."
+            "\n\n"
+            "# Example\n"
+            "```\n"
+            "{context}\n"
+            "```"
+            "\n"
+            "OUTPUT: [MAIN_TOPICS]{main_topics}[\MAIN_TOPICS]{question}[\QUESTION]"
+        )
+
+    def interaction_types(self) -> Tuple[Dict[str, str]]:
+        return (
+            {
+                "interaction_type": "Ask a general question about the main topic.",
+                "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is "
+                           "scattered by particles much smaller than the wavelength of the light, typically molecules in "
+                           "the atmosphere. This scattering is more effective at shorter wavelengths, meaning colors like "
+                           "blue and violet are scattered more than longer wavelengths like red. This is why the sky "
+                           "appears blue during the day. The intensity of Rayleigh scattering is inversely proportional to "
+                           "the fourth power of the wavelength, which explains why shorter wavelengths are scattered much "
+                           "more efficiently.",
+                "main_topics": "- Scattering of light by particles smaller than the light's wavelength.\\n"
+                               "- Shorter wavelengths are scattered more than longer wavelengths.\\n"
+                               "- Scattering intensity is inversely proportional to the fourth power of the wavelength.\\n"
+                               "- Role of molecules in the atmosphere in scattering light.",
+                "question": "Why is the sky blue?"
+            },
+            {
+                "interaction_type": "Ask a misleading question about the topic containing a wrong claim.",
+                "context": "Rayleigh scattering is the phenomenon where light or other electromagnetic radiation is "
+                           "scattered by particles much smaller than the wavelength of the light, typically molecules in "
+                           "the atmosphere. This scattering is more effective at shorter wavelengths, meaning colors like "
+                           "blue and violet are scattered more than longer wavelengths like red. This is why the sky "
+                           "appears blue during the day. The intensity of Rayleigh scattering is inversely proportional to "
+                           "the fourth power of the wavelength, which explains why shorter wavelengths are scattered much "
+                           "more efficiently.",
+                "main_topics": "- Explanation of why the Sun appears orange/red during these times.\\n"
+                               "- Increased scattering of shorter wavelengths (blue/violet) when sunlight travels through "
+                               "a thicker atmosphere.\\n"
+                               "- Addressing the misconception that air temperature directly affects light scattering.\\n"
+                               "- How the longer atmospheric path at sunrise and sunset influences color perception.\\n"
+                               "- Differences between Rayleigh scattering (molecules) and Mie scattering (larger "
+                               "particles).",
+                "question": "Is the sunrise orange because the Sun warms the air thus scattering the light?"
+            }
+        )
+
+    def gen_seed(self, source_content: str, **kwargs: Dict[str, str]) -> Tuple[str, str]:
+        system_prompt = self.base_prompt().format(**kwargs)
+        trials = 0
+        output = ""
+        while trials < self._max_trials:
+            output = self._llm.query(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": f"```\n{source_content}\n```\nOUTPUT: "}
+                ]
+            )
+            output = output.strip()
+
+            match = re.search(
+                r"\[MAIN_TOPICS](?P<topics>.*?)\[\\MAIN_TOPICS](?P<question>.*?)\[\\QUESTION]", output, re.DOTALL
+            )
+
+            if match is None:
+                trials += 1
+                continue
+
+            return match.group("question"), match.group("topics")
+
+        raise LLMProcessingFailure(
+            f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {output}"
+        )
 
 
 class Metadata(pydantic.BaseModel):
@@ -131,15 +272,15 @@ class PrincetonChapters(Generic[T], DataSource[T]):
 
 class SeedStage(Stage[str, Seed]):
 
-    def __init__(self, seed: StudentSeed):
-        self._pool = []
-        self._seed = seed  # TODO: use interface
+    def __init__(self, seeder: ConversationSeeder):
+        self._seeder = seeder
+        self._num_interactions = len(self._seeder.interaction_types())
 
-    def process(self, sample: str, emitter: Emitter[List[Seed]]) -> None:
-        question, topics = self._seed.gen_seed(sample)
-        # TODO: interaction type
-        seed = Seed(source_content=sample, question=question, main_topics=topics, interaction_type=0)
-        self._pool.append(seed)
+    def process(self, sample: str, emitter: Emitter[Seed]) -> None:
+        interaction_type = random.randint(0, self._num_interactions - 1)
+        question, topics = self._seeder.gen_seed(sample, **self._seeder.interaction_types()[interaction_type])
+        seed = Seed(source_content=sample, question=question, main_topics=topics, interaction_type=interaction_type)
+        emitter.emit(seed)
 
     def cleanup(self, emitter: Emitter[List[Seed]]) -> None:
         pass
