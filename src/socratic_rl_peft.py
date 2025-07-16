@@ -5,7 +5,7 @@ import math
 import pathlib
 import shutil
 from collections import defaultdict
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any, Union
 
 import numpy as np
 import scipy
@@ -14,9 +14,13 @@ import unsloth
 from datasets import load_dataset, Dataset
 from ollama import Client
 from torch import nn
+from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, \
-    AutoModelForSequenceClassification
+    ModernBertForSequenceClassification, ModernBertConfig, \
+    ModernBertPreTrainedModel, ModernBertModel
+from transformers.modeling_outputs import SequenceClassifierOutput
+from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 from trl import SFTConfig, SFTTrainer, DPOConfig, DPOTrainer
 
 from agents import Teacher, OllamaAgent, LLM
@@ -54,27 +58,105 @@ def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
     return scipy.signal.lfilter([1], [1, float(-gamma)], x[::-1], axis=0)[::-1]
 
 
-class TanhClassificationHead(nn.Module):
+class ActionValueFunctionModel(ModernBertForSequenceClassification):
+    def __init__(self, config: ModernBertConfig):
+        super(ModernBertPreTrainedModel, self).__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
 
-    def __init__(self, original_head: nn.Module):
-        super().__init__()
-        self.original_head = original_head
-        self.activation = nn.Tanh()
+        self.model = ModernBertModel(config)
+        self.head = ModernBertPredictionHead(config)
+        self.drop = torch.nn.Dropout(config.classifier_dropout)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.value = nn.Tanh()
 
-    def forward(self, x):
-        return self.activation(self.original_head(x))
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def forward(
+            self,
+            input_ids: Optional[torch.LongTensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            sliding_window_mask: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.Tensor] = None,
+            inputs_embeds: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            indices: Optional[torch.Tensor] = None,
+            cu_seqlens: Optional[torch.Tensor] = None,
+            max_seqlen: Optional[int] = None,
+            batch_size: Optional[int] = None,
+            seq_len: Optional[int] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
+            **kwargs,
+    ) -> Union[tuple[torch.Tensor], SequenceClassifierOutput]:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        self._maybe_set_compile()
+
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            sliding_window_mask=sliding_window_mask,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            indices=indices,
+            cu_seqlens=cu_seqlens,
+            max_seqlen=max_seqlen,
+            batch_size=batch_size,
+            seq_len=seq_len,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        last_hidden_state = outputs[0]
+
+        if self.config.classifier_pooling == "cls":
+            last_hidden_state = last_hidden_state[:, 0]
+        elif self.config.classifier_pooling == "mean":
+            last_hidden_state = (last_hidden_state * attention_mask.unsqueeze(-1)).sum(dim=1) / attention_mask.sum(
+                dim=1, keepdim=True
+            )
+
+        pooled_output = self.head(last_hidden_state)
+        pooled_output = self.drop(pooled_output)
+        pooled_output = self.classifier(pooled_output)
+        value = self.value(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type is None:
+                if self.num_labels != 1:
+                    raise ValueError(f"Number of output labels must be 1, but found {self.num_labels}")
+                self.config.problem_type = "regression"
+
+            if self.config.problem_type != "regression":
+                raise ValueError(f"This is a regression model, but found {self.config.problem_type}")
+            loss_fct = MSELoss()
+            loss = loss_fct(value.squeeze(), labels.squeeze())
+
+        if not return_dict:
+            output = (value,)
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=value,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
 
 
 class ActionValueFn:
 
-    def __init__(self, base_model: str, max_length: int = 1024, gpu: Optional[str] = None):
+    def __init__(self, base_model: str, max_length: int = 1024):
         self._max_length = max_length
         self._base_model = base_model
-        self.device = torch.device(gpu) if gpu is not None else None
+        self.device = torch.device("cuda")
         self.model = None
         self.tokenizer = None
 
-    def __call__(self, history: List[Dict[str, str]]) -> float:
+    def __call__(self, history: List[Dict[str, str]]):
         if getattr(self, "model", None) is None or self.tokenizer is None:
             self.load()
 
@@ -87,12 +169,11 @@ class ActionValueFn:
             "attention_mask": tokenized.attention_mask
         }
 
-        if self.device is not None:
-            inputs["input_ids"] = inputs["input_ids"].to(self.device)
-            inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
+        inputs["input_ids"] = inputs["input_ids"].to(self.device)
+        inputs["attention_mask"] = inputs["attention_mask"].to(self.device)
 
         with torch.no_grad():
-            value = float(self.model(**inputs).logits)
+            value = self.model(**inputs).logits
 
         return value
 
@@ -107,19 +188,28 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = AutoModelForSequenceClassification.from_pretrained(
-            self._base_model, num_labels=1
+        self.model = ActionValueFunctionModel.from_pretrained(
+            pretrained_model_name_or_path=self._base_model,
+            num_labels=1,
+            torch_dtype=torch.float32,
+            problem_type="regression",
+            device_map="cuda"
         )
-        self.model.classifier = TanhClassificationHead(self.model.classifier)
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
         self.tokenizer.chat_template = (
-            "{% for message in messages if not message['role'] == 'system' %}"
-            "{{'<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>' + '\n'}}"
+            "{% for i in range(0, messages|length, 2) %}"
+            "{% if i + 1 < messages|length %}"
+            "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
+            "{% endif %}"
             "{% endfor %}"
         )
-        if self.device is not None:
-            self.model = self.model.to(self.device)
+        self.model.resize_token_embeddings(len(self.tokenizer))
+
+        # for name, param in self.model.named_parameters():
+        #     if name.startswith("classifier."):
+        #         print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
     def unload(self) -> None:
         if getattr(self, "model", None) is not None:
@@ -226,10 +316,9 @@ def vf_rollout(
         dataset_path: pathlib.Path,
         action_vf_path: str,
         output_path: pathlib.Path,
-        device: str
 ) -> Dict[str, Any]:
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
-    action_value_fn = ActionValueFn(action_vf_path, max_length=1024, gpu=device)
+    action_value_fn = ActionValueFn(action_vf_path, max_length=1024)
 
     all_preds = []
     all_targets = []
@@ -242,12 +331,12 @@ def vf_rollout(
                 {"role": "user" if h.role == "Student" else "assistant", "content": h.content} for h in history[:2 * z]
             ] for z in range(1, math.ceil(len(history) / 2))
         ]
-        values = [action_value_fn(h) for h in trajectory]
+        values = [float(action_value_fn(h)) for h in trajectory]
 
         gamma = 1.
-        _lambda = 0.9
-        vf_preds = np.array(values)
-        rwd = np.zeros(vf_preds.shape[0])
+        _lambda = 0.7
+        vf_preds = np.array(values, dtype=np.float32)
+        rwd = np.zeros(vf_preds.shape[0], dtype=np.float32)
         rwd[-1] = np.float32(1. if assessment else -1.)
         vpred_t = np.concatenate((vf_preds, [0.]))
         delta_t = -vpred_t[:-1] + rwd + gamma * vpred_t[1:]
@@ -255,7 +344,7 @@ def vf_rollout(
         value_targets = advantages + vf_preds
 
         dataset["history"].extend(trajectory)
-        dataset["labels"].extend(value_targets)
+        dataset["labels"].extend(value_targets.astype(np.float32))
 
         all_preds.extend(vf_preds)
         all_targets.extend(value_targets)
@@ -269,9 +358,11 @@ def vf_rollout(
     all_preds = np.array(all_preds)
     all_targets = np.array(all_targets)
     vf_loss = float(np.mean((all_preds - all_targets) ** 2))
-    explained_var = float(1 - np.var(all_targets - all_preds) / (np.var(all_targets) + 1e-8))
+    explained_var = 1. - np.var(all_targets - all_preds) / (np.var(all_targets) + 1e-8)
+    _min = float(np.min(all_preds))
+    _max = float(np.max(all_preds))
 
-    return {"vf_loss": vf_loss, "explained_var": explained_var}
+    return {"vf_loss": vf_loss, "explained_var": explained_var, "min": _min, "max": _max}
 
 
 def vf_train(
@@ -279,7 +370,6 @@ def vf_train(
         action_value_fn_path: str,
         vf_output_path: pathlib.Path,
         value_checkpoints_path: pathlib.Path,
-        device: str
 ) -> Dict[str, Any]:
     tokenized_dataset = Dataset.load_from_disk(dataset_path)
     tokenized_dataset = tokenized_dataset.shuffle()
@@ -290,7 +380,7 @@ def vf_train(
         learning_rate=1e-5,
         gradient_checkpointing=True
     )
-    action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
+    action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024)
     action_value_fn.load()
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
     results = trainer.train()
@@ -306,7 +396,6 @@ def prepare_for_dpo(
         action_value_fn_path: str,
         policy_path: pathlib.Path,
         output_path: pathlib.Path,
-        device: str
 ) -> Dict[str, Any]:
     model = Qwen(base_model=str(policy_path))
     evaluations_dataset = EvaluationDataset.model_validate_json(evaluations_dataset_path.read_text())
@@ -332,7 +421,7 @@ def prepare_for_dpo(
             )
     model.unload()
 
-    action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024, gpu=device)
+    action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024)
 
     dataset = {"prompt": [], "chosen": [], "rejected": [], "v_chosen": [], "v_rejected": []}
     for t, cl1, cl2 in tqdm(completions, desc="DPO eval samples"):
@@ -478,6 +567,7 @@ if __name__ == "__main__":
     parser.add_argument("--root-dir", required=True, type=pathlib.Path, help="Path where to store pipeline artifacts")
     parser.add_argument("--num-iterations", required=True, type=int, help="Number of training iterations")
     parser.add_argument("--stf-dataset", required=True, type=pathlib.Path, help="Path to dataset to be used for STF")
+    parser.add_argument("--ollama-client", type=str, required=True, help="Address to ollama server")
     parser.add_argument(
         "--num-conversations", required=True, type=int, help="Number of training examples on each iteration"
     )
@@ -485,15 +575,8 @@ if __name__ == "__main__":
         "--max-interactions", default=8, type=int, help="Max number of student-teacher rounds"
     )
     parser.add_argument(
-        "--ollama-client", type=str, default="http://atlas1api.eurecom.fr", help="Address to ollama server"
+        "--vf-training-it", type=int, default=3, help="Number of action-value function training steps"
     )
-    parser.add_argument(
-        "--vf-training-it", type=int, default=1, help="Number of action-value function training steps"
-    )
-    parser.add_argument(
-        "--base-model", type=str, default="phi4", choices=["phi4", "smollm"], help="Base model for PEFT"
-    )
-    parser.add_argument("--train-batch-size", type=int, default=1, help="Batch size for training")
 
     parser.add_argument("--clean", action="store_true", help="Clean root_dir if it exists")
     args = parser.parse_args()
@@ -517,6 +600,7 @@ if __name__ == "__main__":
     stf_pretrained = train_dir / "stf" / "pretrained"
     policy_checkpoints = train_dir / "policy_checkpoints"
     value_checkpoints = train_dir / "value_checkpoints"
+    init_q_path = train_dir / "init_q"
 
     if not stf_pretrained.exists():
         print(f" -------------------- ------------------ starting STF -------------------- ------------------")
@@ -524,6 +608,13 @@ if __name__ == "__main__":
         print(f"train_dir={train_dir}")
         print(f"stf_pretrained={stf_pretrained}")
         stf_warmup(args.stf_dataset, train_dir, stf_pretrained)
+
+    if not init_q_path.exists():
+        action_value_fn = ActionValueFn("answerdotai/ModernBERT-large", max_length=1024)
+        action_value_fn.load()
+        action_value_fn.save(init_q_path)
+        action_value_fn.unload()
+        del action_value_fn
 
     textbooks = load_dataset("princeton-nlp/TextbookChapters")
     for i in range(args.num_iterations):
@@ -540,7 +631,7 @@ if __name__ == "__main__":
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
         current_policy_path = previous_iteration / "policy_fn" if i > 0 else stf_pretrained
-        current_vf_path = previous_iteration / "action_value_fn" if i > 0 else "answerdotai/ModernBERT-large"
+        current_vf_path = previous_iteration / "action_value_fn" if i > 0 else init_q_path
 
         if policy_model_dir.exists():
             continue
@@ -587,7 +678,9 @@ if __name__ == "__main__":
             evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
             judge.unload()
 
-            print(f"\nAvg. perf. {i}: {evaluations_dataset.avg_performance()}\n", flush=True)
+            print()
+            print(f"Avg. perf. {i}: {evaluations_dataset.avg_performance()}")
+            print()
             stats["avg_perf"] = evaluations_dataset.avg_performance()
 
         if not action_vfn_model_dir.exists():
@@ -598,13 +691,10 @@ if __name__ == "__main__":
                 vf_training_path = train_it_dir / "vf_training"
                 current_vf_step_path = current_vf_path if j == 0 else vf_training_path / f"it_{j - 1}" / "value_fn"
 
-                vf_target_path = (
-                    vf_training_path / f"it_{j}" / "value_fn"
-                    if j < args.vf_training_it - 1 else action_vfn_model_dir
-                )
+                vf_target_path = vf_training_path / f"it_{j}" / "value_fn"
 
                 dataset_path = vf_training_path / f"it_{j}" / "dataset"
-                d = vf_rollout(evaluations_path, str(current_vf_step_path), dataset_path, "cuda")
+                d = vf_rollout(evaluations_path, str(current_vf_step_path), dataset_path)
 
                 stats["vf_training"]["vf_loss"].append(d["vf_loss"])
                 stats["vf_training"]["explained_var"].append(d["explained_var"])
@@ -619,9 +709,11 @@ if __name__ == "__main__":
                     dataset_path,
                     str(current_vf_step_path),
                     vf_target_path,
-                    value_checkpoints,
-                    device="cuda"
+                    value_checkpoints
                 )
+
+                if j >= args.vf_training_it - 1:
+                    action_vfn_model_dir.symlink_to(vf_target_path, target_is_directory=True)
 
                 stats["vf_training"]["train"].append(d)
 
@@ -638,8 +730,7 @@ if __name__ == "__main__":
                 evaluations_path,
                 action_vfn_model_dir,
                 current_policy_path,
-                dpo_dataset,
-                device="cuda"
+                dpo_dataset
             )
 
         print()
