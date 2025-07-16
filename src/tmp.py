@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import abc
-from typing import List, TypeVar, Generic, Tuple, Optional, Generator, Type, Dict
+from typing import List, TypeVar, Generic, Tuple, Optional, Generator, Type, Dict, Any
 
 import pydantic
 from datasets import load_dataset
@@ -57,7 +59,7 @@ class Tracker(abc.ABC):
     pass
 
 
-class Emitter(Generic[T]):
+class Emitter(Generic[T, U]):
 
     def __init__(
             self,
@@ -148,10 +150,10 @@ class BufferStage(Stage[T, List[T]]):
     def __init__(self):
         self._buffer: List[T] = []
 
-    def process(self, sample: T, emitter: Emitter[T]) -> None:
+    def process(self, sample: T, emitter: Emitter[List[T]]) -> None:
         self._buffer.append(sample)
 
-    def cleanup(self, emitter: Emitter[T]) -> None:
+    def cleanup(self, emitter: Emitter[List[T]]) -> None:
         emitter.emit(self._buffer)
         self._buffer.clear()
 
@@ -168,7 +170,7 @@ class CollectSink(Stage[T, None]):
 
 
 class PipelineStep(Generic[T, U]):
-    def __init__(self, previous: Optional['PipelineStep[T, U]'], stage: Optional[Stage[T, U]]):
+    def __init__(self, previous: Optional['PipelineStep[Any, U]'], stage: Optional[Stage[T, U]]):
         self.previous = previous
         self.stage = stage
 
@@ -180,11 +182,11 @@ class SocraticBench(Generic[T]):
         self._last_step = step
 
     @classmethod
-    def default(cls) -> 'SocraticBench[Record]':
+    def default(cls) -> SocraticBench[Record]:
         ...
 
     @classmethod
-    def from_data(cls, source: DataSource[T]) -> 'SocraticBench[T]':
+    def from_data(cls: Type[SocraticBench[T]], source: DataSource[T]) -> SocraticBench[T]:
         return cls(source)
 
     def apply(self, stage: Stage[T, U]) -> 'SocraticBench[U]':
@@ -192,14 +194,14 @@ class SocraticBench(Generic[T]):
         return SocraticBench(self._source, last_step)
 
     def batch(self, stage: Stage[List[T], U]) -> 'SocraticBench[U]':
-        buffered = BufferStage[T]()
+        buffered: BufferStage[T] = BufferStage()
         return self.apply(buffered).apply(stage)
 
     def run(self) -> Tuple[List[T], Tracker]:
         tracker: Dict[str, int] = {}
-        sink = CollectSink()
-        terminal = Emitter(None, None, tracker)
-        final_sink = Emitter(sink, terminal, tracker)
+        sink: CollectSink[T] = CollectSink()
+        terminal: Emitter[None, None] = Emitter(None, None, tracker)
+        final_sink: Emitter[None, T] = Emitter(sink, terminal, tracker)
         current_emitter = final_sink
 
         step = self._last_step
@@ -234,16 +236,18 @@ class StringSource(DataSource[str]):
 
 
 if __name__ == "__main__":
-    strsource = StringSource(["hello world", "this is SocraticBench"])
-    sink = CollectSink()
+    strsource: DataSource[str] = StringSource(["hello world", "this is SocraticBench"])
 
     pipeline = (
-        SocraticBench.from_data(strsource)  # str
+        SocraticBench.from_data(strsource)
         .apply(Tokenize())  # str → list[str]
         .apply(Count())  # list[str] → int
     )
     items, t = pipeline.run()
 
+    bench = SocraticBench.from_data(strsource)  # type: SocraticBench[str]
+    # b2 = bench.apply(Tokenize())
+    # b3 = b2.apply(Count())
     print(items)
 
     # API - pipeline
