@@ -425,8 +425,8 @@ def prepare_for_dpo(
 
     dataset = {"prompt": [], "chosen": [], "rejected": [], "v_chosen": [], "v_rejected": []}
     for t, cl1, cl2 in tqdm(completions, desc="DPO eval samples"):
-        v1 = action_value_fn(t + cl1)
-        v2 = action_value_fn(t + cl2)
+        v1 = float(action_value_fn(t + cl1))
+        v2 = float(action_value_fn(t + cl2))
 
         dataset["prompt"].append(t)
 
