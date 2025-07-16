@@ -216,6 +216,7 @@ def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
 def vf_rollout(
         input_dataset: List[Dict[str, Any]],
         action_vf_path: str,
+        _lambda: float,
         output_path: Optional[pathlib.Path] = None
 ) -> Dict[str, Any]:
     action_value_fn = ActionValueFn(action_vf_path, max_length=2048)
@@ -234,7 +235,6 @@ def vf_rollout(
         values = [float(action_value_fn(h)) for h in trajectory]
 
         gamma = 1.
-        _lambda = 0.3
         vf_preds = np.array(values, dtype=np.float32)
         rwd = np.zeros(vf_preds.shape[0], dtype=np.float32)
         rwd[-1] = np.float32(1. if assessment else -1.)
@@ -298,6 +298,7 @@ if __name__ == "__main__":
     parser.add_argument("--input-traces", default=Path("./datasets/socratic_traces/traces.jsonl"))
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--vf-training-it", default=10, type=int)
+    parser.add_argument("--lambda", dest="lambda_", default=0.3, type=float)
     parser.add_argument("--clean", action="store_true", help="Clean root_dir if it exists")
     args = parser.parse_args()
 
@@ -360,13 +361,13 @@ if __name__ == "__main__":
         print(f"vf_target_path={vf_target_path}")
         print()
 
-        d = vf_rollout(train, str(current_vf_step_path), dataset_path)
+        d = vf_rollout(train, str(current_vf_step_path), args.lambda_, dataset_path)
         stats["vf_training"]["vf_loss"].append(d["vf_loss"])
         stats["vf_training"]["explained_var"].append(d["explained_var"])
         stats["vf_training"]["min"].append(d["min"])
         stats["vf_training"]["max"].append(d["max"])
 
-        d = vf_rollout(test, str(current_vf_step_path))
+        d = vf_rollout(test, str(current_vf_step_path), args.lambda_)
         stats["vf_eval"]["vf_loss"].append(d["vf_loss"])
         stats["vf_eval"]["explained_var"].append(d["explained_var"])
         stats["vf_eval"]["min"].append(d["min"])
