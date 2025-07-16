@@ -682,6 +682,7 @@ if __name__ == "__main__":
             print(f"Avg. perf. {i}: {evaluations_dataset.avg_performance()}")
             print()
             stats["avg_perf"] = evaluations_dataset.avg_performance()
+            stats_path.write_text(json.dumps(stats))
 
         if not action_vfn_model_dir.exists():
             print()
@@ -716,6 +717,7 @@ if __name__ == "__main__":
                     action_vfn_model_dir.symlink_to(vf_target_path, target_is_directory=True)
 
                 stats["vf_training"]["train"].append(d)
+                stats_path.write_text(json.dumps(stats))
 
         if not dpo_dataset.exists():
             print()
@@ -732,6 +734,7 @@ if __name__ == "__main__":
                 current_policy_path,
                 dpo_dataset
             )
+            stats_path.write_text(json.dumps(stats))
 
         print()
         print("#### Policy training")
