@@ -151,9 +151,9 @@ class ActionValueFn:
 
     def save(self, path: pathlib.Path) -> None:
         # self.model.merge_and_unload()
-        self.model.save_pretrained(path / "adapter")
+        self.model.save_pretrained(path, save_embedding_layers=True)
         print(self.model.base_model)
-        self.model.base_model.save_pretrained(path / "base_model")
+        # self.model.base_model.save_pretrained(path / "base_model")
         self.tokenizer.save_pretrained(path)
 
     def load(self, for_inference: bool = True) -> None:
@@ -161,12 +161,12 @@ class ActionValueFn:
         if model_path.exists() and model_path.is_dir():
             self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
             self.model = ModernBertForSequenceClassification.from_pretrained(
-                str(model_path / "base_model"),
+                str(model_path),
                 # num_labels=1,
                 torch_dtype=torch.float32,
                 device_map="cuda"
             )
-            config = PeftConfig.from_pretrained(str(model_path / "adapter"))
+            config = PeftConfig.from_pretrained(str(model_path))
             # self.model.resize_token_embeddings(len(self.tokenizer))
             # self.model = PeftModel.from_pretrained(
             #     self.model,
