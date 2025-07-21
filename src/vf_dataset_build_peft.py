@@ -13,7 +13,7 @@ import numpy as np
 import scipy
 import torch
 from datasets import Dataset
-from peft import LoraConfig, TaskType, get_peft_model, AutoPeftModel
+from peft import LoraConfig, TaskType, get_peft_model, AutoPeftModelForSequenceClassification
 from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
@@ -163,7 +163,7 @@ class ActionValueFn:
         )
 
         if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
-            self.model = AutoPeftModel.from_pretrained(
+            self.model = AutoPeftModelForSequenceClassification.from_pretrained(
                 self._base_model, is_trainable=not for_inference, config=peft_config
             )
         else:
