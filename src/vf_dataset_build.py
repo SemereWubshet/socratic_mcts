@@ -20,7 +20,7 @@ from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertCo
     ModernBertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead, \
-    ModernBertForSequenceClassification, ModernBertPreTrainedModel
+    ModernBertPreTrainedModel
 
 
 class ActionValueFunctionModel(ModernBertPreTrainedModel):
@@ -50,15 +50,20 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    def _init_weights(self, module):
-        if isinstance(module, nn.Linear):
-            nn.init.normal_(module.weight, mean=0.0, std=self.config.initializer_range)
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
-        elif isinstance(module, nn.LayerNorm):
-            nn.init.ones_(module.weight)
-            if module.bias is not None:
-                nn.init.zeros_(module.bias)
+        self._init_custom_weights()
+
+    def _init_custom_weights(self):
+        """Only initializes the custom layers added on top."""
+        for name, module in self.named_modules():
+            if name in {"ffn1", "ffn2", "classifier", "norm1", "norm2"}:
+                if isinstance(module, nn.Linear):
+                    nn.init.normal_(module.weight, mean=0.0, std=self.config.initializer_range)
+                    if module.bias is not None:
+                        nn.init.zeros_(module.bias)
+                elif isinstance(module, nn.LayerNorm):
+                    nn.init.ones_(module.weight)
+                    if module.bias is not None:
+                        nn.init.zeros_(module.bias)
 
     def forward(
             self,
