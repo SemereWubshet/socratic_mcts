@@ -35,6 +35,7 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     model = get_peft_model(base_model, peft_config)
 
     model.save_pretrained(path_to_dir)
+    model.base_model.save_pretrained(path_to_dir)
     tokenizer.save_pretrained(path_to_dir)
 
 
