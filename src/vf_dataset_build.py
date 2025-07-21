@@ -105,6 +105,8 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         pooled_output = self.classifier(pooled_output)
         value = self.value(pooled_output)
 
+        print(value)
+
         loss = None
         if labels is not None:
             if self.config.problem_type is None:
