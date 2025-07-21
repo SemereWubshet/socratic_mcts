@@ -161,7 +161,7 @@ class ActionValueFn:
         if model_path.exists() and model_path.is_dir():
             self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
             config = PeftConfig.from_pretrained(str(model_path))
-            self.model = AutoModelForSequenceClassification.from_pretrained(
+            self.model = PeftModel.from_pretrained(
                 str(model_path),
                 # num_labels=1,
                 torch_dtype=torch.float32,
