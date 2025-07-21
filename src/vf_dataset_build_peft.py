@@ -166,7 +166,7 @@ class ActionValueFn:
                 device_map="cuda",
                 config=config
             )
-            # self.model.resize_token_embeddings(len(self.tokenizer))
+            self.model.resize_token_embeddings(len(self.tokenizer))
             # self.model = PeftModel.from_pretrained(
             #     self.model,
             #     str(model_path / "adapter"),
