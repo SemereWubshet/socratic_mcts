@@ -36,8 +36,8 @@ if __name__ == "__main__":
     # print(f"decoded: '{decoded}'")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("POLICY_PATH", type=pathlib.Path, required=True)
-    parser.add_argument("QUESTION", type=str, required=False, default="What's the capital of Brazil?")
+    parser.add_argument("POLICY_PATH", type=pathlib.Path)
+    parser.add_argument("--question", type=str, default="What's the capital of Brazil?")
     args = parser.parse_args()
 
     qwen = Qwen(base_model=args.policy_path)

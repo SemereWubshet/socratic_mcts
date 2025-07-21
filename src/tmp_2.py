@@ -5,7 +5,7 @@ from socratic_rl_peft import ActionValueFn
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("V_PATH", type=pathlib.Path, required=True)
+    parser.add_argument("V_PATH", type=pathlib.Path)
     args = parser.parse_args()
 
     action_value_fn = ActionValueFn(str(args.v_path))
