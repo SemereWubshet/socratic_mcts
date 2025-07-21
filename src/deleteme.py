@@ -53,6 +53,8 @@ def reload_model(path_to_dir: pathlib.Path) -> None:
         device_map="cuda"
     )
 
+    base_model.print_trainable_parameters()
+
     # config = PeftConfig.from_pretrained(str(path_to_dir / "adapter"))
     # model = PeftModel.from_pretrained(
     #     base_model,
