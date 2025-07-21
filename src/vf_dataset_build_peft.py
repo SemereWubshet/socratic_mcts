@@ -182,7 +182,8 @@ class ActionValueFn:
                 num_labels=1,
                 torch_dtype=torch.float32,
                 problem_type="regression",
-                device_map="cuda"
+                device_map="cuda",
+                return_dict = True
             )
 
             self.tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-large")
