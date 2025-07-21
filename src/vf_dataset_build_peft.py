@@ -150,15 +150,17 @@ class ActionValueFn:
         )
 
     def save(self, path: pathlib.Path) -> None:
-        self.model.save_pretrained(path)
+        self.model.save_pretrained(path / "adapter")
+        self.model.base_model.save_pretrained(path / "base_model")
         self.tokenizer.save_pretrained(path)
 
     def load(self, for_inference: bool = True) -> None:
-        if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
+        model_path = pathlib.Path(self._base_model)
+        if model_path.exists() and model_path.is_dir():
             self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-            config = PeftConfig.from_pretrained(self._base_model)
+            config = PeftConfig.from_pretrained(str(model_path / "adapter"))
             self.model = AutoModelForSequenceClassification.from_pretrained(
-                config.base_model_name_or_path,
+                str(model_path / "base_model"),
                 num_labels=1,
                 torch_dtype=torch.float32,
                 problem_type="regression",
@@ -166,7 +168,7 @@ class ActionValueFn:
             )
             self.model.resize_token_embeddings(len(self.tokenizer))
             self.model = PeftModel.from_pretrained(
-                self.model, self._base_model, is_trainable=not for_inference, config=config
+                self.model, str(model_path / "adapter"), is_trainable=not for_inference, config=config
             )
         else:
             self.model = AutoModelForSequenceClassification.from_pretrained(
