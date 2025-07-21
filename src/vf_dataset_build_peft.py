@@ -152,7 +152,7 @@ class ActionValueFn:
     def save(self, path: pathlib.Path) -> None:
         self.model.save_pretrained(path)
         print(self.model.base_model)
-        self.model.base_model.save_pretrained(path)
+        self.model.base_model.save_pretrained(path, save_embedding_layers=True)
         self.tokenizer.save_pretrained(path)
 
     def load(self, for_inference: bool = True) -> None:
