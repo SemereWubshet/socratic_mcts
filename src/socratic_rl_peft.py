@@ -241,15 +241,17 @@ class Qwen(LLM):
         decoded = self.tokenizer.decode(generation, skip_special_tokens=True)
         return decoded
 
-    def load(self) -> None:
-        model, self.tokenizer = unsloth.FastLanguageModel.from_pretrained(
+    def load(self, for_inference: bool = True) -> None:
+        self.model, self.tokenizer = unsloth.FastLanguageModel.from_pretrained(
             model_name=self._base_model,
             dtype=torch.bfloat16,
             max_seq_length=self.max_length,
             load_in_4bit=False,  # False for LoRA 16bit
             load_in_8bit=False,
         )
-        self.model = unsloth.FastLanguageModel.for_inference(model)
+
+        if for_inference:
+            self.model = unsloth.FastLanguageModel.for_inference(self.model)
 
         # ✅ Patch apply_chat_template to default enable_thinking=False
         if hasattr(self.tokenizer, "apply_chat_template"):
@@ -467,7 +469,7 @@ def policy_train(
     train_dataset = train_dataset.shuffle()
 
     qwen = Qwen(str(policy_path))
-    qwen.load()
+    qwen.load(for_inference=False)
 
     training_args = DPOConfig(
         loss_type="robust",
