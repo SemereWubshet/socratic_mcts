@@ -194,7 +194,7 @@ class ActionValueFn:
                 "{% endif %}"
                 "{% endfor %}"
             )
-            self.model.resize_token_embeddings(len(self.tokenizer))
+            self.base_model.resize_token_embeddings(len(self.tokenizer))
 
             peft_config = LoraConfig(
                 r=4,
