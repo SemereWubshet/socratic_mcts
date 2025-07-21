@@ -150,29 +150,30 @@ class ActionValueFn:
         )
 
     def save(self, path: pathlib.Path) -> None:
-        self.model.save_pretrained(path / "adapter")
-        self.model.base_model.save_pretrained(path / "base_model")
+        self.model.save_pretrained(path)
+        self.model.base_model.save_pretrained(path)
         self.tokenizer.save_pretrained(path)
 
     def load(self, for_inference: bool = True) -> None:
         model_path = pathlib.Path(self._base_model)
         if model_path.exists() and model_path.is_dir():
             self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-            config = PeftConfig.from_pretrained(str(model_path / "adapter"))
-            self.model = ModernBertForSequenceClassification.from_pretrained(
-                str(model_path / "base_model"),
+            config = PeftConfig.from_pretrained(str(model_path))
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                str(model_path),
                 num_labels=1,
                 torch_dtype=torch.float32,
-                device_map="cuda"
+                device_map="cuda",
+                config=config
             )
             # self.model.resize_token_embeddings(len(self.tokenizer))
-            self.model = PeftModel.from_pretrained(
-                self.model,
-                str(model_path / "adapter"),
-                is_trainable=not for_inference,
-                config=config,
-                device_map="cuda"
-            )
+            # self.model = PeftModel.from_pretrained(
+            #     self.model,
+            #     str(model_path / "adapter"),
+            #     is_trainable=not for_inference,
+            #     config=config,
+            #     device_map="cuda"
+            # )
         else:
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 pretrained_model_name_or_path="answerdotai/ModernBERT-large",
