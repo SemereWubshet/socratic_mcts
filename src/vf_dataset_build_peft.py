@@ -152,7 +152,7 @@ class ActionValueFn:
     def save(self, path: pathlib.Path) -> None:
         # self.model.merge_and_unload()
         self.model.save_pretrained(path, save_embedding_layers=True)
-        print(self.model.base_model)
+        # print(self.model.base_model)
         # self.model.base_model.save_pretrained(path / "base_model")
         self.tokenizer.save_pretrained(path)
 
@@ -162,7 +162,7 @@ class ActionValueFn:
             self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
             self.model = ModernBertForSequenceClassification.from_pretrained(
                 str(model_path),
-                # num_labels=1,
+                num_labels=1,
                 torch_dtype=torch.float32,
                 device_map="cuda"
             )
