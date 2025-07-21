@@ -160,6 +160,7 @@ class ActionValueFn:
             self.model = PeftModel.from_pretrained(
                 self.model, self._base_model, is_trainable=not for_inference, config=config
             )
+            self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         else:
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 pretrained_model_name_or_path="answerdotai/ModernBERT-large",
@@ -175,19 +176,21 @@ class ActionValueFn:
             )
             self.model = get_peft_model(self.model, peft_config)
 
+            self.tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-large")
+            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
+            self.tokenizer.chat_template = (
+                "{% for i in range(0, messages|length, 2) %}"
+                "{% if i + 1 < messages|length %}"
+                "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
+                "{% endif %}"
+                "{% endfor %}"
+            )
+            self.model.resize_token_embeddings(len(self.tokenizer))
+
         self.model.print_trainable_parameters()
 
-        self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
-        self.tokenizer.chat_template = (
-            "{% for i in range(0, messages|length, 2) %}"
-            "{% if i + 1 < messages|length %}"
-            "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
-            "{% endif %}"
-            "{% endfor %}"
-        )
-        self.model.resize_token_embeddings(len(self.tokenizer))
+
 
         for name, param in self.model.named_parameters():
             print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
