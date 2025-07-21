@@ -13,7 +13,7 @@ import numpy as np
 import scipy
 import torch
 from datasets import Dataset
-from peft import LoraConfig, TaskType, get_peft_model, AutoPeftModelForSequenceClassification, PeftConfig, PeftModel
+from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, PeftModel
 from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
@@ -155,12 +155,18 @@ class ActionValueFn:
 
     def load(self, for_inference: bool = True) -> None:
         if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
+            self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
             config = PeftConfig.from_pretrained(self._base_model)
-            self.model = AutoModelForSequenceClassification.from_pretrained(config.base_model_name_or_path)
+            self.model = AutoModelForSequenceClassification.from_pretrained(
+                config.base_model_name_or_path,
+                torch_dtype=torch.float32,
+                problem_type="regression",
+                device_map="cuda"
+            )
+            self.model.resize_token_embeddings(len(self.tokenizer))
             self.model = PeftModel.from_pretrained(
                 self.model, self._base_model, is_trainable=not for_inference, config=config
             )
-            self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         else:
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 pretrained_model_name_or_path="answerdotai/ModernBERT-large",
@@ -190,8 +196,6 @@ class ActionValueFn:
             self.model = get_peft_model(self.model, peft_config)
 
         self.model.print_trainable_parameters()
-
-
 
         for name, param in self.model.named_parameters():
             print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
