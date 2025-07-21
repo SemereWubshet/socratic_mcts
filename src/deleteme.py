@@ -47,7 +47,7 @@ def reload_model(path_to_dir: pathlib.Path) -> None:
         device_map="cuda"
     )
     config = PeftConfig.from_pretrained(str(path_to_dir))
-    # self.model.resize_token_embeddings(len(self.tokenizer))
+    base_model.resize_token_embeddings(len(tokenizer))
     model = PeftModel.from_pretrained(
         base_model,
         str(path_to_dir),
