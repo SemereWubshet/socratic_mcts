@@ -161,7 +161,7 @@ class ActionValueFn:
                 self.model, self._base_model, is_trainable=not for_inference, config=config
             )
         else:
-            self.model = ModernBertPreTrainedModel.from_pretrained(
+            self.model = AutoModelForSequenceClassification.from_pretrained(
                 pretrained_model_name_or_path="answerdotai/ModernBERT-large",
                 torch_dtype=torch.float32,
                 problem_type="regression",
