@@ -162,7 +162,7 @@ class ActionValueFn:
             config = PeftConfig.from_pretrained(str(model_path))
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 str(model_path),
-                num_labels=1,
+                # num_labels=1,
                 torch_dtype=torch.float32,
                 device_map="cuda",
                 config=config
