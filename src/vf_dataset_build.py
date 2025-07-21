@@ -32,8 +32,13 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         self.model = ModernBertModel(config)
         self.head = ModernBertPredictionHead(config)
         self.drop = torch.nn.Dropout(config.classifier_dropout)
-        self.feedforward1 = nn.Linear(config.hidden_size, config.hidden_size)
-        self.feedforward2 = nn.Linear(config.hidden_size, config.hidden_size)
+
+        self.ffn1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.ffn2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.ffn_norm1 = nn.LayerNorm(config.hidden_size)
+        self.ffn_norm2 = nn.LayerNorm(config.hidden_size)
+        self.ffn_dropout = nn.Dropout(config.classifier_dropout)
+
         self.activation = nn.GELU()
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.value = nn.Tanh()
@@ -51,8 +56,8 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
             else:
                 print(f"Frozen:    {name}")
 
-        print(self.feedforward1.extra_repr())
-        print(self.feedforward2.extra_repr())
+        print(self.ffn1.extra_repr())
+        print(self.ffn2.extra_repr())
 
     def forward(
             self,
@@ -104,9 +109,9 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
 
         print(pooled_output)
 
-        pooled_output = self.activation(self.feedforward1(pooled_output))
+        pooled_output = self.ffn_dropout(self.ffn_norm1(self.activation(self.ffn1(pooled_output))))
         print(pooled_output)
-        pooled_output = self.activation(self.feedforward2(pooled_output))
+        pooled_output = self.ffn_dropout(self.ffn_norm2(self.activation(self.ffn2(pooled_output))))
         print(pooled_output)
         pooled_output = self.classifier(pooled_output)
         print(pooled_output)
