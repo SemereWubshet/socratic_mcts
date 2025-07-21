@@ -117,8 +117,9 @@ class ActionValueFn:
 
     def __init__(self, base_model: str, max_length: int = 1024):
         self._max_length = max_length
-        self._base_model = base_model
+        self._base_model_path = base_model
         self.device = torch.device("cuda")
+        self.base_model = None
         self.model = None
         self.tokenizer = None
 
@@ -150,34 +151,31 @@ class ActionValueFn:
         )
 
     def save(self, path: pathlib.Path) -> None:
-        self.model.merge_and_unload()
-        self.model.save_pretrained(path, save_embedding_layers=True)
-        print(self.model.modules_to_save)
-        # self.model.base_model.save_pretrained(path / "base_model")
+        self.model.save_pretrained(path / "adapter")
+        self.base_model.save_pretrained(path / "base_model")
         self.tokenizer.save_pretrained(path)
 
     def load(self, for_inference: bool = True) -> None:
-        model_path = pathlib.Path(self._base_model)
+        model_path = pathlib.Path(self._base_model_path)
         if model_path.exists() and model_path.is_dir():
-            print(model_path)
-            self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-            self.model = ModernBertForSequenceClassification.from_pretrained(
-                str(model_path),
+            self.tokenizer = AutoTokenizer.from_pretrained(self._base_model_path)
+            self.base_model = ModernBertForSequenceClassification.from_pretrained(
+                str(model_path / "base_model"),
                 num_labels=1,
                 torch_dtype=torch.float32,
                 device_map="cuda"
             )
-            config = PeftConfig.from_pretrained(str(model_path))
+            config = PeftConfig.from_pretrained(str(model_path / "adapter"))
             # self.model.resize_token_embeddings(len(self.tokenizer))
-            # self.model = PeftModel.from_pretrained(
-            #     self.model,
-            #     str(model_path / "adapter"),
-            #     is_trainable=not for_inference,
-            #     config=config,
-            #     device_map="cuda"
-            # )
+            self.model = PeftModel.from_pretrained(
+                self.base_model,
+                str(model_path / "adapter"),
+                is_trainable=not for_inference,
+                config=config,
+                device_map="cuda"
+            )
         else:
-            self.model = AutoModelForSequenceClassification.from_pretrained(
+            self.base_model = AutoModelForSequenceClassification.from_pretrained(
                 pretrained_model_name_or_path="answerdotai/ModernBERT-large",
                 num_labels=1,
                 torch_dtype=torch.float32,
@@ -204,7 +202,7 @@ class ActionValueFn:
                 task_type=TaskType.SEQ_CLS,
                 target_modules="all-linear"
             )
-            self.model = get_peft_model(self.model, peft_config)
+            self.model = get_peft_model(self.base_model, peft_config)
 
         self.model.print_trainable_parameters()
 
