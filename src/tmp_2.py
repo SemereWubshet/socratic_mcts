@@ -1,7 +1,7 @@
 import argparse
 import pathlib
 
-from socratic_rl_peft import ActionValueFn
+from vf_dataset_build import ActionValueFn
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
