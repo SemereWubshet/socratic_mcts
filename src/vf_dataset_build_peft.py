@@ -164,7 +164,7 @@ class ActionValueFn:
 
         if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
             self.model = AutoPeftModel.from_pretrained(
-                self.model, self._base_model, is_trainable=not for_inference, config=peft_config
+                self._base_model, is_trainable=not for_inference, config=peft_config
             )
         else:
             self.model = ModernBertForSequenceClassification.from_pretrained(
