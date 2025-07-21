@@ -52,21 +52,36 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
 
         self._init_custom_weights()
 
-    def _init_custom_weights(self):
-        """Only initializes the custom layers added on top."""
-        for name, module in self.named_modules():
-            if name in {"ffn1", "ffn2", "classifier", "norm1", "norm2"}:
-                print(f"{name}")
-                if isinstance(module, nn.Linear):
-                    print("linear")
-                    nn.init.normal_(module.weight, mean=0.0, std=self.config.initializer_range)
-                    if module.bias is not None:
-                        nn.init.zeros_(module.bias)
-                elif isinstance(module, nn.LayerNorm):
-                    print("layer_norm")
-                    nn.init.ones_(module.weight)
-                    if module.bias is not None:
-                        nn.init.zeros_(module.bias)
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        cutoff_factor = self.config.initializer_cutoff_factor
+        if cutoff_factor is None:
+            cutoff_factor = 3
+
+        def init_weight(module: nn.Module, std: float):
+            nn.init.trunc_normal_(
+                module.weight,
+                mean=0.0,
+                std=std,
+                a=-cutoff_factor * std,
+                b=cutoff_factor * std,
+            )
+
+            if isinstance(module, nn.Linear):
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+        stds = {
+            "in": self.config.initializer_range,
+            "out": self.config.initializer_range / math.sqrt(2.0 * self.config.num_hidden_layers),
+            "embedding": self.config.initializer_range,
+            "final_out": self.config.hidden_size ** -0.5,
+        }
+
+        if isinstance(module, ActionValueFunctionModel):
+            init_weight(module.ffn1, stds["final_out"])
+            init_weight(module.ffn2, stds["final_out"])
+            init_weight(module.classifier, stds["final_out"])
 
     def forward(
             self,
