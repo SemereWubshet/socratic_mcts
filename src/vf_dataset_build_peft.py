@@ -13,12 +13,12 @@ import numpy as np
 import scipy
 import torch
 from datasets import Dataset
-from peft import LoraConfig, TaskType, get_peft_model, AutoPeftModelForSequenceClassification
+from peft import LoraConfig, TaskType, get_peft_model, AutoPeftModelForSequenceClassification, PeftConfig, PeftModel
 from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig, \
-    ModernBertModel
+    ModernBertModel, AutoModelForSequenceClassification
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead, \
     ModernBertPreTrainedModel, ModernBertForSequenceClassification
@@ -150,7 +150,6 @@ class ActionValueFn:
         )
 
     def save(self, path: pathlib.Path) -> None:
-        self.model.merge_and_unload()
         self.model.save_pretrained(path)
         self.tokenizer.save_pretrained(path)
 
@@ -163,8 +162,10 @@ class ActionValueFn:
         )
 
         if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
-            self.model = AutoPeftModelForSequenceClassification.from_pretrained(
-                self._base_model, is_trainable=not for_inference, config=peft_config
+            config = PeftConfig.from_pretrained(self._base_model)
+            self.model = AutoModelForSequenceClassification.from_pretrained(config.base_model_name_or_path)
+            self.model = PeftModel.from_pretrained(
+                self.model, self._base_model, is_trainable=not for_inference, config=config
             )
         else:
             self.model = ModernBertForSequenceClassification.from_pretrained(
