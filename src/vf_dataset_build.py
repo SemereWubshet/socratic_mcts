@@ -56,6 +56,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         """Only initializes the custom layers added on top."""
         for name, module in self.named_modules():
             if name in {"ffn1", "ffn2", "classifier", "norm1", "norm2"}:
+                print("here")
                 if isinstance(module, nn.Linear):
                     nn.init.normal_(module.weight, mean=0.0, std=self.config.initializer_range)
                     if module.bias is not None:
