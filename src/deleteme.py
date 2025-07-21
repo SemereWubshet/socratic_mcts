@@ -53,7 +53,7 @@ def reload_model(path_to_dir: pathlib.Path) -> None:
         device_map="cuda"
     )
 
-    for name, param in self.model.named_parameters():
+    for name, param in base_model.named_parameters():
         print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
     # config = PeftConfig.from_pretrained(str(path_to_dir / "adapter"))
