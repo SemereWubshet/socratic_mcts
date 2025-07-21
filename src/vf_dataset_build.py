@@ -50,8 +50,6 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-        self._init_custom_weights()
-
     def _init_weights(self, module: nn.Module):
         super()._init_weights(module)
         cutoff_factor = self.config.initializer_cutoff_factor
