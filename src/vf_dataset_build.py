@@ -37,7 +37,7 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         self.ffn2 = nn.Linear(config.hidden_size, config.hidden_size)
         self.ffn_dropout = nn.Dropout(config.classifier_dropout)
 
-        self.activation = nn.GELU()
+        self.activation = nn.ReLU()
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.value = nn.Tanh()
 
