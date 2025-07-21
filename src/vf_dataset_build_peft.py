@@ -150,7 +150,7 @@ class ActionValueFn:
         )
 
     def save(self, path: pathlib.Path) -> None:
-        # self.model.merge_and_unload()
+        self.model.merge_and_unload()
         self.model.save_pretrained(path, save_embedding_layers=True)
         print(self.model.modules_to_save)
         # self.model.base_model.save_pretrained(path / "base_model")
