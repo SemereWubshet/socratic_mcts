@@ -23,9 +23,9 @@ from transformers.models.modernbert.modeling_modernbert import ModernBertPredict
     ModernBertForSequenceClassification, ModernBertPreTrainedModel
 
 
-class ActionValueFunctionModel(ModernBertForSequenceClassification):
+class ActionValueFunctionModel(ModernBertPreTrainedModel):
     def __init__(self, config: ModernBertConfig):
-        super(ModernBertPreTrainedModel, self).__init__(config)
+        super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
 
