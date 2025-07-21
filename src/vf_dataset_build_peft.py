@@ -153,7 +153,7 @@ class ActionValueFn:
         self.model.save_pretrained(path)
         self.tokenizer.save_pretrained(path)
 
-    def load(self) -> None:
+    def load(self, for_inference: bool = True) -> None:
         self.model = ModernBertForSequenceClassification.from_pretrained(
             pretrained_model_name_or_path="answerdotai/ModernBERT-large",
             num_labels=1,
@@ -164,15 +164,18 @@ class ActionValueFn:
 
         print(self.model.model)
 
+        peft_config = LoraConfig(
+            r=4,
+            lora_alpha=32,
+            task_type=TaskType.SEQ_CLS,
+            target_modules="all-linear"
+        )
+
         if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
-            self.model = PeftModel.from_pretrained(self.model, self._base_model)
-        else:
-            peft_config = LoraConfig(
-                r=4,
-                lora_alpha=32,
-                task_type=TaskType.SEQ_CLS,
-                target_modules="all-linear"
+            self.model = PeftModel.from_pretrained(
+                self.model, self._base_model, is_trainable=not for_inference, config=peft_config
             )
+        else:
             self.model = get_peft_model(self.model, peft_config)
 
         self.model.print_trainable_parameters()
@@ -299,7 +302,7 @@ def vf_train(
         gradient_checkpointing=True
     )
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=2048)
-    action_value_fn.load()
+    action_value_fn.load(for_inference=False)
     trainer = Trainer(model=action_value_fn.model, args=training_args, train_dataset=tokenized_dataset)
     results = trainer.train()
     action_value_fn.save(vf_output_path)
