@@ -32,11 +32,24 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         self.model = ModernBertModel(config)
         self.head = ModernBertPredictionHead(config)
         self.drop = torch.nn.Dropout(config.classifier_dropout)
+        self.feedforward1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.feedforward2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.activation = nn.GELU()
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.value = nn.Tanh()
 
+        # Freeze base model
+        for param in self.model.parameters():
+            param.requires_grad = False
+
         # Initialize weights and apply final processing
         self.post_init()
+
+        for name, param in self.named_parameters():
+            if param.requires_grad:
+                print(f"Trainable: {name}")
+            else:
+                print(f"Frozen:    {name}")
 
     def forward(
             self,
@@ -85,6 +98,10 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
 
         pooled_output = self.head(last_hidden_state)
         pooled_output = self.drop(pooled_output)
+
+        pooled_output = self.activation(self.feedforward1(pooled_output))
+        pooled_output = self.activation(self.feedforward2(pooled_output))
+
         pooled_output = self.classifier(pooled_output)
         value = self.value(pooled_output)
 
