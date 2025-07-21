@@ -206,7 +206,7 @@ class ActionValueFn:
             device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-        if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
+        if not pathlib.Path(self._base_model).exists() or not pathlib.Path(self._base_model).is_dir():
             self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
             self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
             self.tokenizer.chat_template = (
