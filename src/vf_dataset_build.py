@@ -374,6 +374,8 @@ if __name__ == "__main__":
 
     action_value_fn = ActionValueFn("answerdotai/ModernBERT-large", max_length=2048)
     action_value_fn.load()
+    action_value_fn([{"role": "user", "content": "What's the capital of Brazil?"},
+                     {"role": "assistant", "content": "Brasília!"}])
     action_value_fn.save(vf_training_path / "it_0" / "value_fn")
     action_value_fn.unload()
     del action_value_fn
