@@ -35,6 +35,7 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
 
         self.ffn1 = nn.Linear(config.hidden_size, config.hidden_size)
         self.ffn2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.norm = nn.LayerNorm(config.hidden_size)
         self.ffn_dropout = nn.Dropout(config.classifier_dropout)
 
         self.activation = nn.ReLU()
@@ -110,7 +111,7 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
 
         print(pooled_output)
 
-        pooled_output = self.ffn_dropout(self.ffn2(self.activation(self.ffn1(pooled_output))))
+        pooled_output = self.ffn_dropout(self.ffn2(self.norm(self.activation(self.ffn1(pooled_output)))))
         print(pooled_output)
         pooled_output = self.classifier(pooled_output)
         print(pooled_output)
