@@ -8,7 +8,7 @@ if __name__ == "__main__":
     parser.add_argument("V_PATH", type=pathlib.Path)
     args = parser.parse_args()
 
-    action_value_fn = ActionValueFn(str(args.v_path))
+    action_value_fn = ActionValueFn(str(args.V_PATH))
 
     print("Q: What's the capital of Brazil?")
 

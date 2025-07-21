@@ -40,6 +40,6 @@ if __name__ == "__main__":
     parser.add_argument("--question", type=str, default="What's the capital of Brazil?")
     args = parser.parse_args()
 
-    qwen = Qwen(base_model=args.policy_path)
+    qwen = Qwen(base_model=args.POLICY_PATH)
     response = qwen.query([{"role": "user", "content": args.question}, ])
     print(response)
