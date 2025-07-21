@@ -47,6 +47,12 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         for param in self.model.parameters():
             param.requires_grad = False
 
+        nn.init.xavier_uniform_(self.ffn1.weight)
+        nn.init.zeros_(self.ffn1.bias)
+
+        nn.init.xavier_uniform_(self.ffn2.weight)
+        nn.init.zeros_(self.ffn2.bias)
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -58,6 +64,9 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
 
         print(self.ffn1.extra_repr())
         print(self.ffn2.extra_repr())
+
+        print("FFN1 weight std:", self.ffn1.weight.std().item())
+        print("FFN2 weight std:", self.ffn2.weight.std().item())
 
     def forward(
             self,
