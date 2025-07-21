@@ -154,7 +154,7 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = ModernBertPreTrainedModel.from_pretrained(
+        self.model = ModernBertForSequenceClassification.from_pretrained(
             pretrained_model_name_or_path="answerdotai/ModernBERT-large",
             num_labels=1,
             torch_dtype=torch.float32,
