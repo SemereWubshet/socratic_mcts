@@ -153,7 +153,7 @@ class ActionValueFn:
         self.model.merge_and_unload()
         self.model.save_pretrained(path)
         print(self.model.base_model)
-        self.model.base_model.save_pretrained(path, save_embedding_layers=True)
+        # self.model.base_model.save_pretrained(path, save_embedding_layers=True)
         self.tokenizer.save_pretrained(path)
 
     def load(self, for_inference: bool = True) -> None:
