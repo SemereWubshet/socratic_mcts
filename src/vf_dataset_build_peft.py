@@ -162,7 +162,7 @@ class ActionValueFn:
             device_map="cuda"
         )
 
-        print(self.model)
+        print(self.model.model)
 
         if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
             self.model = PeftModel.from_pretrained(self.model, self._base_model)
