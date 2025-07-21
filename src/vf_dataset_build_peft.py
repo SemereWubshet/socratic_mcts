@@ -165,7 +165,7 @@ class ActionValueFn:
             r=4,
             lora_alpha=32,
             task_type=TaskType.SEQ_CLS,
-            # target_modules="all-linear"
+            target_modules="all-linear"
         )
         self.model = get_peft_model(self.model, peft_config)
         self.model.print_trainable_parameters()
