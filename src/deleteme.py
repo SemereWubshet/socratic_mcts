@@ -34,11 +34,10 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     )
     model = get_peft_model(base_model, peft_config)
 
-    # Save LoRA adapter
-    model.save_pretrained(path_to_dir / "adapter")
+    merged = model.merge_and_unload()
 
-    # Save base model (with modified classifier and embeddings)
-    model.base_model.save_pretrained(path_to_dir / "base")
+    # Save LoRA adapter
+    merged.save_pretrained(path_to_dir)
 
     # Save tokenizer
     tokenizer.save_pretrained(path_to_dir)
@@ -48,19 +47,18 @@ def reload_model(path_to_dir: pathlib.Path) -> None:
     tokenizer = AutoTokenizer.from_pretrained(path_to_dir)
 
     base_model = AutoModelForSequenceClassification.from_pretrained(
-        str(path_to_dir / "base"),
-        num_labels=1,
+        str(path_to_dir),
         torch_dtype=torch.float32,
         device_map="cuda"
     )
 
-    config = PeftConfig.from_pretrained(str(path_to_dir / "adapter"))
-    model = PeftModel.from_pretrained(
-        base_model,
-        str(path_to_dir / "adapter"),
-        is_trainable=True,
-        device_map="cuda"
-    )
+    # config = PeftConfig.from_pretrained(str(path_to_dir / "adapter"))
+    # model = PeftModel.from_pretrained(
+    #     base_model,
+    #     str(path_to_dir / "adapter"),
+    #     is_trainable=True,
+    #     device_map="cuda"
+    # )
 
 
 if __name__ == "__main__":
