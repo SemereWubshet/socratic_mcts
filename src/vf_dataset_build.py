@@ -51,6 +51,9 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
             else:
                 print(f"Frozen:    {name}")
 
+        print(self.feedforward1.extra_repr())
+        print(self.feedforward2.extra_repr())
+
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,
