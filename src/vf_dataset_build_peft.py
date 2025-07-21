@@ -13,7 +13,7 @@ import numpy as np
 import scipy
 import torch
 from datasets import Dataset
-from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, PeftModel
+from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, PeftModel, PeftModelForSequenceClassification
 from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
@@ -201,13 +201,7 @@ class ActionValueFn:
                 task_type=TaskType.SEQ_CLS,
                 target_modules="all-linear"
             )
-            self.model = PeftModel.from_pretrained(
-                self.base_model,
-                str(model_path / "adapter"),
-                is_trainable=not for_inference,
-                config=peft_config,
-                device_map="cuda"
-            )
+            self.model = PeftModelForSequenceClassification(self.base_model, peft_config)
 
         self.model.print_trainable_parameters()
 
