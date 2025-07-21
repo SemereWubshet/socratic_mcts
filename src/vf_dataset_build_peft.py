@@ -180,8 +180,7 @@ class ActionValueFn:
                 num_labels=1,
                 torch_dtype=torch.float32,
                 problem_type="regression",
-                device_map="cuda",
-                return_dict = True
+                device_map="cuda"
             )
 
             self.tokenizer = AutoTokenizer.from_pretrained("answerdotai/ModernBERT-large")
@@ -202,7 +201,13 @@ class ActionValueFn:
                 task_type=TaskType.SEQ_CLS,
                 target_modules="all-linear"
             )
-            self.model = get_peft_model(self.base_model, peft_config)
+            self.model = PeftModel.from_pretrained(
+                self.base_model,
+                str(model_path / "adapter"),
+                is_trainable=not for_inference,
+                config=peft_config,
+                device_map="cuda"
+            )
 
         self.model.print_trainable_parameters()
 
