@@ -50,18 +50,6 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         # Initialize weights and apply final processing
         self.post_init()
 
-        for name, param in self.named_parameters():
-            if param.requires_grad:
-                print(f"Trainable: {name}")
-            else:
-                print(f"Frozen:    {name}")
-
-        print(self.ffn1.extra_repr())
-        print(self.ffn2.extra_repr())
-
-        # print("FFN1 weight std:", np.array(self.ffn1.weight.cpu()))
-        # print("FFN2 weight std:", np.array(self.ffn2.weight.cpu()))
-
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,
@@ -206,9 +194,8 @@ class ActionValueFn:
         )
         self.model.resize_token_embeddings(len(self.tokenizer))
 
-        # for name, param in self.model.named_parameters():
-        #     if name.startswith("classifier."):
-        #         print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
+        for name, param in self.model.named_parameters():
+            print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
     def unload(self) -> None:
         if getattr(self, "model", None) is not None:
