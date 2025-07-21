@@ -37,9 +37,8 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         self.ffn2 = nn.Linear(config.hidden_size, config.hidden_size)
         self.norm1 = nn.LayerNorm(config.hidden_size)
         self.norm2 = nn.LayerNorm(config.hidden_size)
-        self.ffn_dropout = nn.Dropout(config.classifier_dropout)
 
-        self.activation = nn.ReLU()
+        self.activation = nn.GELU()
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.value = nn.Tanh()
 
@@ -129,17 +128,10 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         pooled_output = self.head(last_hidden_state)
         pooled_output = self.drop(pooled_output)
 
-        # print(pooled_output)
-
-        pooled_output = self.ffn_dropout(self.norm1(self.activation(self.ffn1(pooled_output))))
-        # print(pooled_output)
-        pooled_output = self.ffn_dropout(self.norm2(self.ffn2(pooled_output)))
-        # print(pooled_output)
+        pooled_output = self.drop(self.norm1(self.activation(self.ffn1(pooled_output))))
+        pooled_output = self.drop(self.norm2(self.activation(self.ffn2(pooled_output))))
         pooled_output = self.classifier(pooled_output)
-        # print(pooled_output)
         value = self.value(pooled_output)
-
-        # print(value)
 
         loss = None
         if labels is not None:
