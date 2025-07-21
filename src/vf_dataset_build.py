@@ -206,16 +206,17 @@ class ActionValueFn:
             device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
-        self.tokenizer.chat_template = (
-            "{% for i in range(0, messages|length, 2) %}"
-            "{% if i + 1 < messages|length %}"
-            "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
-            "{% endif %}"
-            "{% endfor %}"
-        )
-        self.model.resize_token_embeddings(len(self.tokenizer))
+        if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
+            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
+            self.tokenizer.chat_template = (
+                "{% for i in range(0, messages|length, 2) %}"
+                "{% if i + 1 < messages|length %}"
+                "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
+                "{% endif %}"
+                "{% endfor %}"
+            )
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
         for name, param in self.model.named_parameters():
             print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
