@@ -58,8 +58,8 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
         print(self.ffn1.extra_repr())
         print(self.ffn2.extra_repr())
 
-        print("FFN1 weight std:", np.array(self.ffn1.weight.cpu()))
-        print("FFN2 weight std:", np.array(self.ffn2.weight.cpu()))
+        # print("FFN1 weight std:", np.array(self.ffn1.weight.cpu()))
+        # print("FFN2 weight std:", np.array(self.ffn2.weight.cpu()))
 
     def forward(
             self,
