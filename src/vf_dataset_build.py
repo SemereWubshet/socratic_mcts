@@ -112,7 +112,9 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
 
         print(pooled_output)
 
-        pooled_output = self.ffn_dropout(self.norm2(self.ffn2(self.norm1(self.activation(self.ffn1(pooled_output))))))
+        pooled_output = self.ffn_dropout(self.norm1(self.activation(self.ffn1(pooled_output))))
+        print(pooled_output)
+        pooled_output = self.ffn_dropout(self.norm2(self.ffn2(pooled_output)))
         print(pooled_output)
         pooled_output = self.classifier(pooled_output)
         print(pooled_output)
