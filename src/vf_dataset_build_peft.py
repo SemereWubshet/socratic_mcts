@@ -159,6 +159,7 @@ class ActionValueFn:
     def load(self, for_inference: bool = True) -> None:
         model_path = pathlib.Path(self._base_model)
         if model_path.exists() and model_path.is_dir():
+            print(model_path)
             self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
             self.model = ModernBertForSequenceClassification.from_pretrained(
                 str(model_path),
