@@ -1,7 +1,54 @@
-from datasets import Dataset
+import argparse
+import pathlib
+
+from socratic_rl_peft import ActionValueFn
 
 if __name__ == "__main__":
-    d = Dataset.load_from_disk("/home/gatti/socratic-rl/trial-0/train/iteration_0/vf_training/it_5/dataset")
-    print(d["history"][0])
-    # print(d["input_ids"][0])
-    print(d["labels"][0])
+    parser = argparse.ArgumentParser()
+    parser.add_argument("V_PATH", type=pathlib.Path, required=True)
+    args = parser.parse_args()
+
+    action_value_fn = ActionValueFn(str(args.v_path))
+
+    print("Q: What's the capital of Brazil?")
+
+    result = action_value_fn([
+        {"role": "user", "content": "What's the capital of Brazil?"},
+        {"role": "assistant", "content": "The capital of Brazil is Brasilia."}
+    ])
+
+    print()
+    print("A: The capital of Brazil is Brasilia.")
+    print(f"q(s,a) = {float(result)}")
+
+    result = action_value_fn([
+        {"role": "user", "content": "What's the capital of Brazil?"},
+        {"role": "assistant", "content": "Can you think about planned cities built in Brazil in 1950s?"}
+    ])
+    print()
+    print("Can you think about planned cities built in Brazil in 1950s?")
+    print(f"q(s,a) = {float(result)}")
+
+    result = action_value_fn([
+        {"role": "user", "content": "What's the capital of Brazil?"},
+        {"role": "assistant", "content": "Brazil moved its capital from Rio in 1950s. Can you think of the reasons "
+                                         "for the government to want do so?"}
+    ])
+    print()
+    print("Brazil moved its capital from Rio in 1950s. Can you think of the reasons for the government to want do so?")
+    print(f"q(s,a) = {float(result)}")
+
+    result = action_value_fn([
+        {"role": "user", "content": "What's the capital of Brazil?"},
+        {"role": "assistant", "content": "The capital of Brazil was Rio de Janeiro until 1950s. On that time, "
+                                         "Brazil was mostly a coastal country despite its vast territory. "
+                                         "The Brazilian government wanted to move the capital inwards the country "
+                                         "so to make it more strategically positioned. Can you think about planned "
+                                         "Brazilian cities built during that period?"}
+    ])
+    print()
+    print("The capital of Brazil was Rio de Janeiro until 1950s. On that time, Brazil was mostly a coastal country "
+          "despite its vast territory. The Brazilian government wanted to move the capital inwards the country so to "
+          "make it more strategically positioned. Can you think about planned Brazilian cities built during that "
+          "period?")
+    print(f"q(s,a) = {float(result)}")

@@ -1,8 +1,5 @@
-import gc
-import time
-
-import torch
-import unsloth
+import argparse
+import pathlib
 
 from socratic_rl_peft import Qwen
 
@@ -38,10 +35,11 @@ if __name__ == "__main__":
     # decoded = tokenizer.decode(generation, skip_special_tokens=True)
     # print(f"decoded: '{decoded}'")
 
-    qwen = Qwen(base_model="/home/gatti/socratic-rl/trial-0/train/stf/checkpoint-246/")
-    response = qwen.query([{"role": "user", "content": "What's the capital of Brazil?"}, ])
-    print(response)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("POLICY_PATH", type=pathlib.Path, required=True)
+    parser.add_argument("QUESTION", type=str, required=False, default="What's the capital of Brazil?")
+    args = parser.parse_args()
 
-    qwen.unload()
-    print("going to sleep")
-    time.sleep(60)
+    qwen = Qwen(base_model=args.policy_path)
+    response = qwen.query([{"role": "user", "content": args.question}, ])
+    print(response)
