@@ -150,6 +150,7 @@ class ActionValueFn:
         )
 
     def save(self, path: pathlib.Path) -> None:
+        self.model.merge_and_unload()
         self.model.save_pretrained(path)
         self.tokenizer.save_pretrained(path)
 
