@@ -44,6 +44,7 @@ def init_model(path_to_dir: pathlib.Path) -> None:
 
 
 def reload_model(path_to_dir: pathlib.Path) -> None:
+    print("reloading")
     tokenizer = AutoTokenizer.from_pretrained(path_to_dir)
 
     base_model = AutoModelForSequenceClassification.from_pretrained(
