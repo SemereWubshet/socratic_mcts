@@ -151,6 +151,7 @@ class ActionValueFn:
 
     def save(self, path: pathlib.Path) -> None:
         self.model.save_pretrained(path)
+        print(self.model.base_model)
         self.model.base_model.save_pretrained(path)
         self.tokenizer.save_pretrained(path)
 
@@ -166,7 +167,7 @@ class ActionValueFn:
                 device_map="cuda",
                 config=config
             )
-            self.model.resize_token_embeddings(len(self.tokenizer))
+            # self.model.resize_token_embeddings(len(self.tokenizer))
             # self.model = PeftModel.from_pretrained(
             #     self.model,
             #     str(model_path / "adapter"),
