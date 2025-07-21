@@ -13,7 +13,7 @@ import numpy as np
 import scipy
 import torch
 from datasets import Dataset
-from peft import LoraConfig, TaskType, get_peft_model
+from peft import LoraConfig, TaskType, get_peft_model, PeftModel
 from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
@@ -154,20 +154,25 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        self.model = ActionValueFunctionModel.from_pretrained(
-            pretrained_model_name_or_path=self._base_model,
+        self.model = ModernBertPreTrainedModel.from_pretrained(
+            pretrained_model_name_or_path="answerdotai/ModernBERT-large",
             num_labels=1,
             torch_dtype=torch.float32,
             problem_type="regression",
             device_map="cuda"
         )
-        peft_config = LoraConfig(
-            r=4,
-            lora_alpha=32,
-            task_type=TaskType.SEQ_CLS,
-            target_modules="all-linear"
-        )
-        self.model = get_peft_model(self.model, peft_config)
+
+        if pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir():
+            self.model = PeftModel.from_pretrained(self.model, self._base_model)
+        else:
+            peft_config = LoraConfig(
+                r=4,
+                lora_alpha=32,
+                task_type=TaskType.SEQ_CLS,
+                target_modules="all-linear"
+            )
+            self.model = get_peft_model(self.model, peft_config)
+
         self.model.print_trainable_parameters()
 
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
