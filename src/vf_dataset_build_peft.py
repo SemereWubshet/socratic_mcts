@@ -159,6 +159,7 @@ class ActionValueFn:
             config = PeftConfig.from_pretrained(self._base_model)
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 config.base_model_name_or_path,
+                num_labels=1,
                 torch_dtype=torch.float32,
                 problem_type="regression",
                 device_map="cuda"
@@ -170,6 +171,7 @@ class ActionValueFn:
         else:
             self.model = AutoModelForSequenceClassification.from_pretrained(
                 pretrained_model_name_or_path="answerdotai/ModernBERT-large",
+                num_labels=1,
                 torch_dtype=torch.float32,
                 problem_type="regression",
                 device_map="cuda"
