@@ -58,7 +58,8 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
                 nn.init.zeros_(module.bias)
         elif isinstance(module, nn.LayerNorm):
             nn.init.ones_(module.weight)
-            nn.init.zeros_(module.bias)
+            if module.bias is not None:
+                nn.init.zeros_(module.bias)
 
     def forward(
             self,
