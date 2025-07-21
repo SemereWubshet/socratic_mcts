@@ -33,12 +33,6 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         self.head = ModernBertPredictionHead(config)
         self.drop = torch.nn.Dropout(config.classifier_dropout)
 
-        self.ffn1 = nn.Linear(config.hidden_size, config.hidden_size)
-        self.ffn2 = nn.Linear(config.hidden_size, config.hidden_size)
-        self.norm1 = nn.LayerNorm(config.hidden_size)
-        self.norm2 = nn.LayerNorm(config.hidden_size)
-        self.ffn_dropout = nn.Dropout(config.classifier_dropout)
-
         self.activation = nn.ReLU()
         self.classifier = nn.Linear(config.hidden_size, config.num_labels)
         self.value = nn.Tanh()
@@ -49,6 +43,12 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
 
         # Initialize weights and apply final processing
         self.post_init()
+
+        self.ffn1 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.ffn2 = nn.Linear(config.hidden_size, config.hidden_size)
+        self.norm1 = nn.LayerNorm(config.hidden_size)
+        self.norm2 = nn.LayerNorm(config.hidden_size)
+        self.ffn_dropout = nn.Dropout(config.classifier_dropout)
 
     def forward(
             self,
