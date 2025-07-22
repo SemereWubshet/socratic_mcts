@@ -554,7 +554,7 @@ def policy_train(
         print(combined)
         return [float(vf(c)) for c in combined]
 
-    def processing_class(
+    def patch(
             text: List[str],
             return_tensors: str = "pt",
             padding: bool = True,
@@ -571,10 +571,12 @@ def policy_train(
             add_special_tokens=add_special_tokens
         )
 
+    model.tokenizer.__call__ = patch
+
     trainer = GRPOTrainer(
         args=training_args,
         model=model.model,
-        processing_class=processing_class,
+        processing_class=model.tokenizer,
         reward_funcs=rwd_fn,
         train_dataset=hf_dataset,
     )
