@@ -516,10 +516,6 @@ def policy_train(
                 }
                 for h in history[:2 * z - 1]
             ]
-            dataset["history"].append(trajectory)
-            # prompt = model.tokenizer.apply_chat_template(
-            #     trajectory, tokenize=False, add_generation_prompt=True, enable_thinking=False
-            # )
             dataset["prompt"].append(trajectory)
 
     hf_dataset = Dataset.from_dict(dataset)
@@ -533,7 +529,7 @@ def policy_train(
         top_p=0.95,
         output_dir=checkpoints_dir,
         per_device_train_batch_size=32,
-        gradient_accumulation_steps=1,
+        gradient_accumulation_steps=4,
         temperature=2.4,
         max_completion_length=128,
         num_generations=16,
