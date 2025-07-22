@@ -58,17 +58,9 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
 
-        stds = {
-            "in": self.config.initializer_range,
-            "out": self.config.initializer_range / math.sqrt(2.0 * self.config.num_hidden_layers),
-            "embedding": self.config.initializer_range,
-            "final_out": self.config.hidden_size ** -0.5,
-        }
-
         if isinstance(module, ActionValueFunctionModel):
-            init_weight(module.ffn1, stds["final_out"])
-            init_weight(module.ffn2, stds["final_out"])
-            init_weight(module.classifier, stds["final_out"])
+            init_weight(module.classifier, self.config.hidden_size ** -0.5)
+
     def forward(
             self,
             input_ids: Optional[torch.LongTensor] = None,
