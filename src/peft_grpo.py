@@ -282,7 +282,9 @@ class Qwen(LLM):
         )
 
         self.tokenizer.padding_side = "left"
-        self.tokenizer.pad_token = self.tokenizer.eos_token
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.add_special_tokens({'pad_token': '<|pad|>'})
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
         if for_inference:
             self.model = unsloth.FastLanguageModel.for_inference(self.model)
@@ -295,6 +297,8 @@ class Qwen(LLM):
                 print("in chat template: ")
                 print(conversation)
                 kwargs.setdefault("enable_thinking", False)
+                kwargs.setdefault("max_length", 1024)
+                kwargs.setdefault("padding", True)
                 return original_fn(conversation, **kwargs)
 
             self.tokenizer.apply_chat_template = patched_apply_chat_template
