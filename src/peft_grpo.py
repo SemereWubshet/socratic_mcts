@@ -18,10 +18,11 @@ from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, \
     ModernBertConfig, \
-    ModernBertPreTrainedModel, ModernBertModel, DataCollatorWithPadding
+    ModernBertPreTrainedModel, ModernBertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 from trl import SFTConfig, SFTTrainer, GRPOConfig, GRPOTrainer
+from trl.trainer.sft_trainer import DataCollatorForLanguageModeling
 
 from agents import Teacher, OllamaAgent, LLM
 from evaluate import gen_teacher_student_interactions, gen_seeds, evaluate
@@ -660,7 +661,7 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
         processing_class=tokenizer,
         train_dataset=dataset,
         args=training_args,
-        data_collator=DataCollatorWithPadding(tokenizer, padding="max_length", max_length=1024)
+        data_collator=DataCollatorForLanguageModeling(pad_token_id=tokenizer.pad_token_id)
     )
     train_stats = trainer.train()
     with open(train_dir / "stf_train_stats.json", "w") as f:
