@@ -56,13 +56,17 @@ def reload_model(path_to_dir: pathlib.Path) -> None:
     for name, param in base_model.named_parameters():
         print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
-    # config = PeftConfig.from_pretrained(str(path_to_dir / "adapter"))
-    # model = PeftModel.from_pretrained(
-    #     base_model,
-    #     str(path_to_dir / "adapter"),
-    #     is_trainable=True,
-    #     device_map="cuda"
-    # )
+    config = PeftConfig.from_pretrained(str(path_to_dir))
+    model = PeftModel.from_pretrained(
+        base_model,
+        path_to_dir,
+        is_trainable=True,
+        device_map="cuda"
+    )
+
+    print()
+    for name, param in model.named_parameters():
+        print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
 
 if __name__ == "__main__":
