@@ -278,8 +278,7 @@ class Qwen(LLM):
             dtype=torch.bfloat16,
             max_seq_length=self.max_length,
             load_in_4bit=False,  # False for LoRA 16bit
-            load_in_8bit=False,
-            padding_side = "left"
+            load_in_8bit=False
         )
 
         if for_inference:
