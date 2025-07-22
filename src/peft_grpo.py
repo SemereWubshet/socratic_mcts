@@ -612,8 +612,8 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
     training_args = SFTConfig(
         max_seq_length=1024,
         output_dir=train_dir / "stf",
-        per_device_train_batch_size=1,
-        gradient_accumulation_steps=1,
+        per_device_train_batch_size=4,
+        gradient_accumulation_steps=4,
         warmup_steps=5,
         num_train_epochs=2,
         lr_scheduler_type="linear",
