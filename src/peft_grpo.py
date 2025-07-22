@@ -564,6 +564,8 @@ def policy_train(
         print(decoded)
         generation = old_method(*args, **kwargs)
         print(generation)
+        decoded = model.tokenizer.decode(token_ids=generation[0])
+        print(decoded)
         print('----')
         print()
         return generation
