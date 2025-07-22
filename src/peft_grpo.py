@@ -554,10 +554,27 @@ def policy_train(
         print(combined)
         return [float(vf(c)) for c in combined]
 
+    def processing_class(
+            text: List[str],
+            return_tensors: str = "pt",
+            padding: bool = True,
+            padding_side: str = "left",
+            add_special_tokens: bool = False
+    ):
+        print("text: ")
+        print(text)
+        return model.tokenizer(
+            text,
+            return_tensors=return_tensors,
+            padding=padding,
+            padding_side=padding_side,
+            add_special_tokens=add_special_tokens
+        )
+
     trainer = GRPOTrainer(
         args=training_args,
         model=model.model,
-        processing_class=model.tokenizer,
+        processing_class=processing_class,
         reward_funcs=rwd_fn,
         train_dataset=hf_dataset,
     )
