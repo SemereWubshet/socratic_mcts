@@ -24,8 +24,8 @@ from transformers.models.modernbert.modeling_modernbert import ModernBertPreTrai
 
 class ActionValueFunctionModel(ModernBertPreTrainedModel):
     def __init__(self, config: ModernBertConfig):
-        self.config["classifier_bias"] = True
-        self.config["classifier_dropout"] = 0.05
+        config["classifier_bias"] = True
+        config["classifier_dropout"] = 0.05
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
