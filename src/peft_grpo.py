@@ -496,6 +496,12 @@ def policy_train(
         checkpoints_dir: pathlib.Path,
         output_dir: pathlib.Path
 ) -> Dict[str, Any]:
+    vf = ActionValueFn(action_value_fn_path, max_length=1024)
+    vf.load()
+
+    model = Qwen(str(policy_path), max_length=1024)
+    model.load(for_inference=False)
+
     evaluations_dataset = EvaluationDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
     dataset = defaultdict(list)
     for item in tqdm(evaluations_dataset.get_valid(), desc="DPO policy forward pass"):
@@ -508,16 +514,13 @@ def policy_train(
                 }
                 for h in history[:2 * z - 1]
             ]
-            dataset["prompt"].extend(trajectory)
+            dataset["history"].append(trajectory)
+            prompt = model.tokenizer.apply_chat_template(
+                trajectory, tokenize=False, add_generation_prompt=True, enable_thinking=False
+            )
+            dataset["prompt"].append(prompt)
 
     hf_dataset = Dataset.from_dict(dataset)
-
-    # Define reward model
-    vf = ActionValueFn(action_value_fn_path, max_length=1024)
-    vf.load()
-
-    model = Qwen(str(policy_path), max_length=1024)
-    model.load(for_inference=False)
 
     # GRPO config
     training_args = GRPOConfig(
@@ -533,8 +536,8 @@ def policy_train(
         report_to="none"
     )
 
-    def rwd_fn(prompts: List[List[Dict[str, str]]], completions: List[List[Dict[str, str]]], **kwargs) -> List[float]:
-        combined = [p.append(c) for p, c in zip(prompts, completions)]
+    def rwd_fn(history: List[List[Dict[str, str]]], completions: List[List[Dict[str, str]]], **kwargs) -> List[float]:
+        combined = [p.append(c) for p, c in zip(history, completions)]
         return [float(vf(c)) for c in combined]
 
     trainer = GRPOTrainer(
