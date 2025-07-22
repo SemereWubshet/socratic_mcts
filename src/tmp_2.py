@@ -18,7 +18,7 @@ if __name__ == "__main__":
     ])
 
     print()
-    print("A: The capital of Brazil is Brasilia.")
+    print("A: What do you think capital of Brazil being Brasilia?")
     print(f"q(s,a) = {float(result)}")
 
     result = action_value_fn([
