@@ -554,12 +554,18 @@ def policy_train(
         print(combined[0])
         return [float(vf(c)) for c in combined]
 
+    old_method = model.model.generate
+
     def patch(*args, **kwargs):
         print(args)
         print(kwargs)
-        return model.model.generate(*args, **kwargs)
+        return old_method(*args, **kwargs)
 
     model.model.generate = patch
+
+    answer = model.query([{"role":"user", "content": "what am I testing?"}])
+    print(answer)
+    print("now GRPO")
 
     trainer = GRPOTrainer(
         args=training_args,
