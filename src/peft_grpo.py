@@ -279,6 +279,7 @@ class Qwen(LLM):
             max_seq_length=self.max_length,
             load_in_4bit=False,  # False for LoRA 16bit
             load_in_8bit=False,
+            padding_side = "left"
         )
 
         if for_inference:
@@ -522,21 +523,26 @@ def policy_train(
 
     hf_dataset = Dataset.from_dict(dataset)
 
-    print("prompt:" )
+    print("prompt:")
     print(hf_dataset["prompt"][0])
 
     # GRPO config
     training_args = GRPOConfig(
         learning_rate=1e-6,
+        top_p=0.95,
         output_dir=checkpoints_dir,
-        per_device_train_batch_size=8,
+        per_device_train_batch_size=32,
         gradient_accumulation_steps=1,
         temperature=2.4,
         max_completion_length=128,
         num_generations=16,
         num_train_epochs=1,
         save_strategy="epoch",
-        report_to="none"
+        report_to="none",
+        generation_kwargs={
+            "max_length": 1024,
+            "bos_token_id": 151643
+        }
     )
 
     def rwd_fn(history: List[List[Dict[str, str]]], completions: List[str], **kwargs) -> List[float]:
