@@ -613,6 +613,7 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
 
     model.gradient_checkpointing_enable()  # https://github.com/huggingface/transformers/issues/30544
     tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
+    tokenizer.max_length = 1024
     tokenizer.padding_side = "left"
     dataset = Dataset.load_from_disk(dataset_path)
 
