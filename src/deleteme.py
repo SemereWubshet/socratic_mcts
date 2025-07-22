@@ -25,6 +25,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
     _supports_flex_attn = False
 
     def __init__(self, encoder: PreTrainedModel, config: ModernBertConfig, *args, **kwargs):
+        print(encoder)
         super().__init__(config, *args, **kwargs)
         self.num_labels = 1
         self.config = config
