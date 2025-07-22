@@ -24,8 +24,8 @@ from transformers.models.modernbert.modeling_modernbert import ModernBertPreTrai
 
 class ActionValueFunctionModel(ModernBertPreTrainedModel):
     def __init__(self, config: ModernBertConfig):
-        config["classifier_bias"] = True
-        config["classifier_dropout"] = 0.05
+        config.classifier_bias = True
+        config.classifier_dropout = 0.05
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
@@ -192,16 +192,17 @@ class ActionValueFn:
             device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
-        self.tokenizer.chat_template = (
-            "{% for i in range(0, messages|length, 2) %}"
-            "{% if i + 1 < messages|length %}"
-            "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
-            "{% endif %}"
-            "{% endfor %}"
-        )
-        self.model.resize_token_embeddings(len(self.tokenizer))
+        if not pathlib.Path(self._base_model).exists() or not pathlib.Path(self._base_model).is_dir():
+            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
+            self.tokenizer.chat_template = (
+                "{% for i in range(0, messages|length, 2) %}"
+                "{% if i + 1 < messages|length %}"
+                "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
+                "{% endif %}"
+                "{% endfor %}"
+            )
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
         # for name, param in self.model.named_parameters():
         #     if name.startswith("classifier."):
