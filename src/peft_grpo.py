@@ -537,7 +537,13 @@ def policy_train(
     )
 
     def rwd_fn(history: List[List[Dict[str, str]]], completions: List[List[Dict[str, str]]], **kwargs) -> List[float]:
+        print("history:")
+        print(history)
+        print("completions")
+        print(completions)
         combined = [p.append(c) for p, c in zip(history, completions)]
+        print("combined")
+        print(combined)
         return [float(vf(c)) for c in combined]
 
     trainer = GRPOTrainer(
