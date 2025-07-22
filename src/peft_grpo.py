@@ -281,6 +281,8 @@ class Qwen(LLM):
             load_in_8bit=False
         )
 
+        self.tokenizer.padding_side = "left"
+
         if for_inference:
             self.model = unsloth.FastLanguageModel.for_inference(self.model)
 
