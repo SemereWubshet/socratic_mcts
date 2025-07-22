@@ -554,6 +554,12 @@ def policy_train(
         print(combined[0])
         return [float(vf(c)) for c in combined]
 
+    def patch(**kwargs):
+        print(kwargs)
+        return model.model.generate(**kwargs)
+
+    model.model.generate = patch
+
     trainer = GRPOTrainer(
         args=training_args,
         model=model.model,
