@@ -540,7 +540,7 @@ def policy_train(
         report_to="none",
         generation_kwargs={
             "max_length": 1024,
-            "bos_token_id": 151643
+            "bos_token_id": model.tokenizer.bos_token_id
         }
     )
 
