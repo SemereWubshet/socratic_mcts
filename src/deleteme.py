@@ -171,7 +171,7 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     )
     encoder = get_peft_model(encoder, peft_config)
 
-    model = ActionValueFunctionModel(encoder, ModernBertConfig(vocab_size=len(tokenizer)), device_map="cuda")
+    model = ActionValueFunctionModel(ModernBertConfig(vocab_size=len(tokenizer)), encoder, device_map="cuda")
 
     print(list(model.modules()))
 
