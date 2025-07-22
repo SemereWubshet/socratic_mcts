@@ -34,6 +34,7 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     )
     model = get_peft_model(base_model, peft_config)
 
+    print(list(model.modules()))
     print(model.modules_to_save)
 
     # merged = model.merge_and_unload()
