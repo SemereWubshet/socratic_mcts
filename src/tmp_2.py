@@ -1,7 +1,7 @@
 import argparse
 import pathlib
 
-from vf_dataset_build import ActionValueFn
+from vf_dataset_build_2 import ActionValueFn
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
