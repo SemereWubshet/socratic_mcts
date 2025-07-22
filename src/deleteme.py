@@ -176,7 +176,6 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     model = ActionValueFunctionModel(encoder, ModernBertConfig(vocab_size=len(tokenizer)), device_map="cuda")
 
     print(list(model.modules()))
-    print(model.modules_to_save)
 
     # merged = model.merge_and_unload()
 
