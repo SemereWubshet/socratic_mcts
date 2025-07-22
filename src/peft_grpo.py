@@ -540,8 +540,6 @@ def policy_train(
         report_to="none",
         generation_kwargs={
             "max_length": 1024,
-            "bos_token_id": model.tokenizer.bos_token_id,
-            "padding": False,
         }
     )
 
@@ -615,13 +613,17 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
 
     model.gradient_checkpointing_enable()  # https://github.com/huggingface/transformers/issues/30544
     tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
+    tokenizer.padding_side = "left"
     dataset = Dataset.load_from_disk(dataset_path)
 
     def prepare_prompts(examples) -> None:
         _input = [
-            tokenizer.apply_chat_template(c, tokenize=False, add_generation_prompt=False, enable_thinking=False)
+            tokenizer.apply_chat_template(
+                c, padding="max_length", tokenize=False, add_generation_prompt=False, enable_thinking=False
+            )
             for c in examples["messages"]
         ]
+        print(_input)
         return {"text": _input}
 
     dataset = dataset.map(prepare_prompts, batched=True)
