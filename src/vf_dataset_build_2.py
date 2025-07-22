@@ -176,10 +176,10 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        config = ModernBertConfig.from_pretrained(self._base_model)
+        config = ModernBertConfig.from_pretrained(self._base_model, num_labels=1)
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            num_labels=1,
+            # num_labels=1,
             config=config,
             torch_dtype=torch.float32,
             problem_type="regression",
