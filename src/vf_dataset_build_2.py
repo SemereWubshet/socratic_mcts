@@ -23,6 +23,7 @@ from transformers.models.modernbert.modeling_modernbert import ModernBertPreTrai
 
 
 class ActionValueFunctionModel(ModernBertPreTrainedModel):
+    """Heavily inspired from ModernBertForSequenceClassification, but with a Tahn value head on the top of the model."""
     _supports_flash_attn_2 = False
 
     def __init__(self, config: ModernBertConfig):
@@ -176,11 +177,16 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
+        config = ModernBertConfig.from_pretrained(
+            self._base_model,
+            num_labels=1,
+            classifier_dropout=0.05,
+            torch_dtype="float32",
+            problem_type="regression"
+        )
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            num_labels=1,
-            torch_dtype=torch.float32,
-            problem_type="regression",
+            config=config,
             device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
@@ -327,6 +333,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     train_dir: Path = args.output_dir
+
+    torch.set_float32_matmul_precision('high')
 
     if args.clean and train_dir.exists() and train_dir.is_dir():
         for child in train_dir.iterdir():
