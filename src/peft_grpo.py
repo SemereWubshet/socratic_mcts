@@ -518,12 +518,12 @@ def policy_train(
             prompt = model.tokenizer.apply_chat_template(
                 trajectory, tokenize=False, add_generation_prompt=True, enable_thinking=False
             )
-            dataset["text"].append(prompt)
+            dataset["prompt"].append(prompt)
 
     hf_dataset = Dataset.from_dict(dataset)
 
-    print("text:")
-    print(hf_dataset["text"][0])
+    print("prompt:")
+    print(hf_dataset["prompt"][0])
 
     # GRPO config
     training_args = GRPOConfig(
