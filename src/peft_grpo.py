@@ -284,8 +284,10 @@ class Qwen(LLM):
 
         self.tokenizer.padding_side = "left"
         if self.tokenizer.pad_token is None:
+            print("adding padding token")
             self.tokenizer.add_special_tokens({'pad_token': '<|pad|>'})
             self.model.resize_token_embeddings(len(self.tokenizer))
+            self.tokenizer.pad_token_id = len(self.tokenizer)
 
         if for_inference:
             self.model = unsloth.FastLanguageModel.for_inference(self.model)
@@ -573,6 +575,13 @@ def policy_train(
         print(decoded)
         print('----')
         print()
+        s = "<|im_start|>user\nwhat am I testing?<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>"
+        encoded = model.tokenizer(s, **kwargs)
+        result = old_method(**encoded)
+        print(result)
+        print()
+        if True:
+            raise ValueError
         return generation
 
     model.model.generate = patch
@@ -613,7 +622,6 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
     )
 
     tokenizer.padding_side = "left"
-    tokenizer.pad_token = tokenizer.eos_token
 
     model = unsloth.FastLanguageModel.get_peft_model(
         model,
