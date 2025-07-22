@@ -39,27 +39,27 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
         # Initialize weights and apply final processing
         self.post_init()
 
-    # def _init_weights(self, module: nn.Module):
-    #     super()._init_weights(module)
-    #     cutoff_factor = self.config.initializer_cutoff_factor
-    #     if cutoff_factor is None:
-    #         cutoff_factor = 3
-    #
-    #     def init_weight(module: nn.Module, std: float):
-    #         nn.init.trunc_normal_(
-    #             module.weight,
-    #             mean=0.0,
-    #             std=std,
-    #             a=-cutoff_factor * std,
-    #             b=cutoff_factor * std,
-    #         )
-    #
-    #         if isinstance(module, nn.Linear):
-    #             if module.bias is not None:
-    #                 nn.init.zeros_(module.bias)
-    #
-    #     if isinstance(module, ActionValueFunctionModel):
-    #         init_weight(module.classifier, self.config.hidden_size ** -0.5)
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        cutoff_factor = self.config.initializer_cutoff_factor
+        if cutoff_factor is None:
+            cutoff_factor = 3
+
+        def init_weight(module: nn.Module, std: float):
+            nn.init.trunc_normal_(
+                module.weight,
+                mean=0.0,
+                std=std,
+                a=-cutoff_factor * std,
+                b=cutoff_factor * std,
+            )
+
+            if isinstance(module, nn.Linear):
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+        if isinstance(module, ActionValueFunctionModel):
+            init_weight(module.classifier, self.config.hidden_size ** -0.5)
 
     def forward(
             self,
