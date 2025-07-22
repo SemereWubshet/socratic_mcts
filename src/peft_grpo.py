@@ -517,10 +517,10 @@ def policy_train(
                 for h in history[:2 * z - 1]
             ]
             dataset["history"].append(trajectory)
-            prompt = model.tokenizer.apply_chat_template(
-                trajectory, tokenize=False, add_generation_prompt=True, enable_thinking=False
-            )
-            dataset["prompt"].append(prompt)
+            # prompt = model.tokenizer.apply_chat_template(
+            #     trajectory, tokenize=False, add_generation_prompt=True, enable_thinking=False
+            # )
+            dataset["prompt"].append(trajectory)
 
     hf_dataset = Dataset.from_dict(dataset)
 
