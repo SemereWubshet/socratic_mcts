@@ -72,7 +72,7 @@ class ActionValueFn:
         self.model = ModernBertForSequenceClassification.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
             config=config,
-            num_labels=1,
+            # num_labels=1,
             torch_dtype=torch.float32,
             problem_type="regression",
             device_map="cuda"
