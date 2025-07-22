@@ -544,12 +544,12 @@ def policy_train(
         }
     )
 
-    def rwd_fn(prompt: List[List[Dict[str, str]]], completions: List[str], **kwargs) -> List[float]:
+    def rwd_fn(prompts: List[List[Dict[str, str]]], completions: List[str], **kwargs) -> List[float]:
         print("history:")
-        print(prompt[0])
+        print(prompts[0])
         print("completions: ")
         print(completions[0])
-        combined = [p + [{"role": "assistant", "content": c}, ] for p, c in zip(prompt, completions)]
+        combined = [p + [{"role": "assistant", "content": c}, ] for p, c in zip(prompts, completions)]
         print("combined: ")
         print(combined[0])
         return [float(vf(c)) for c in combined]
