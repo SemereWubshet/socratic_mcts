@@ -23,9 +23,9 @@ from transformers.models.modernbert.modeling_modernbert import ModernBertPreTrai
 
 
 class ActionValueFunctionModel(ModernBertPreTrainedModel):
+    _supports_flash_attn_2 = False
+
     def __init__(self, config: ModernBertConfig):
-        # config.classifier_bias = True
-        # config.classifier_dropout = 0.05
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
@@ -176,13 +176,11 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        config = ModernBertConfig.from_pretrained(self._base_model, num_labels=1)
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            # num_labels=1,
-            config=config,
-            # torch_dtype=torch.float32,
-            # problem_type="regression",
+            num_labels=1,
+            torch_dtype=torch.float32,
+            problem_type="regression",
             device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
