@@ -1,12 +1,9 @@
 import pathlib
 from typing import Union, Optional
 
-import pathlib
-from typing import Union, Optional
-
 import torch
 import torch.nn as nn
-from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, AutoPeftModelForSequenceClassification, AutoPeftModel
+from peft import LoraConfig, get_peft_model, AutoPeftModel
 from torch.nn import MSELoss
 from transformers import AutoTokenizer, AutoModel, ModernBertConfig, PreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput
@@ -24,7 +21,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
     _supports_sdpa = True
     _supports_flex_attn = False
 
-    def __init__(self, encoder: PreTrainedModel, config: ModernBertConfig, *args, **kwargs):
+    def __init__(self, config: ModernBertConfig, encoder: PreTrainedModel, *args, **kwargs):
         print(encoder)
         super().__init__(config, *args, **kwargs)
         self.num_labels = 1
