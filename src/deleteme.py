@@ -169,7 +169,6 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     peft_config = LoraConfig(
         r=4,
         lora_alpha=32,
-        task_type=TaskType.CAUSAL_LM,
         target_modules="all-linear"
     )
     encoder = get_peft_model(encoder, peft_config)
