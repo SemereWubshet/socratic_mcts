@@ -23,7 +23,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
 
     def __init__(self, config: ModernBertConfig, encoder: PreTrainedModel, *args, **kwargs):
         print(encoder)
-        super().__init__(config, *args, **kwargs)
+        super().__init__(*args, config=config, **kwargs)
         self.num_labels = 1
         self.config = config
 
