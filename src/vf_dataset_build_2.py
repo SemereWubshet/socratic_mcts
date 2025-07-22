@@ -7,15 +7,140 @@ import random
 import shutil
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 
 import numpy as np
 import scipy
 import torch
 from datasets import Dataset
+from torch import nn
+from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, ModernBertConfig
-from transformers.models.modernbert.modeling_modernbert import ModernBertForSequenceClassification
+from transformers.modeling_outputs import SequenceClassifierOutput
+from transformers.models.modernbert.modeling_modernbert import ModernBertPreTrainedModel, ModernBertModel, \
+    ModernBertPredictionHead
+
+
+class ActionValueFunctionModel(ModernBertPreTrainedModel):
+    def __init__(self, config: ModernBertConfig):
+        self.config["classifier_bias"] = True
+        self.config["classifier_dropout"] = 0.05
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+
+        self.model = ModernBertModel(config)
+        self.head = ModernBertPredictionHead(config)
+        self.drop = torch.nn.Dropout(config.classifier_dropout)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.value = nn.Tanh()
+
+        # Initialize weights and apply final processing
+        self.post_init()
+
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        cutoff_factor = self.config.initializer_cutoff_factor
+        if cutoff_factor is None:
+            cutoff_factor = 3
+
+        def init_weight(module: nn.Module, std: float):
+            nn.init.trunc_normal_(
+                module.weight,
+                mean=0.0,
+                std=std,
+                a=-cutoff_factor * std,
+                b=cutoff_factor * std,
+            )
+
+            if isinstance(module, nn.Linear):
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+        stds = {
+            "in": self.config.initializer_range,
+            "out": self.config.initializer_range / math.sqrt(2.0 * self.config.num_hidden_layers),
+            "embedding": self.config.initializer_range,
+            "final_out": self.config.hidden_size ** -0.5,
+        }
+
+        if isinstance(module, ActionValueFunctionModel):
+            init_weight(module.ffn1, stds["final_out"])
+            init_weight(module.ffn2, stds["final_out"])
+            init_weight(module.classifier, stds["final_out"])
+    def forward(
+            self,
+            input_ids: Optional[torch.LongTensor] = None,
+            attention_mask: Optional[torch.Tensor] = None,
+            sliding_window_mask: Optional[torch.Tensor] = None,
+            position_ids: Optional[torch.Tensor] = None,
+            inputs_embeds: Optional[torch.Tensor] = None,
+            labels: Optional[torch.Tensor] = None,
+            indices: Optional[torch.Tensor] = None,
+            cu_seqlens: Optional[torch.Tensor] = None,
+            max_seqlen: Optional[int] = None,
+            batch_size: Optional[int] = None,
+            seq_len: Optional[int] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
+            **kwargs,
+    ) -> Union[tuple[torch.Tensor], SequenceClassifierOutput]:
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        self._maybe_set_compile()
+
+        outputs = self.model(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            sliding_window_mask=sliding_window_mask,
+            position_ids=position_ids,
+            inputs_embeds=inputs_embeds,
+            indices=indices,
+            cu_seqlens=cu_seqlens,
+            max_seqlen=max_seqlen,
+            batch_size=batch_size,
+            seq_len=seq_len,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+        )
+        last_hidden_state = outputs[0]
+
+        if self.config.classifier_pooling == "cls":
+            last_hidden_state = last_hidden_state[:, 0]
+        elif self.config.classifier_pooling == "mean":
+            last_hidden_state = (last_hidden_state * attention_mask.unsqueeze(-1)).sum(dim=1) / attention_mask.sum(
+                dim=1, keepdim=True
+            )
+
+        pooled_output = self.head(last_hidden_state)
+        pooled_output = self.drop(pooled_output)
+        pooled_output = self.classifier(pooled_output)
+        value = self.value(pooled_output)
+
+        loss = None
+        if labels is not None:
+            if self.config.problem_type is None:
+                if self.num_labels != 1:
+                    raise ValueError(f"Number of output labels must be 1, but found {self.num_labels}")
+                self.config.problem_type = "regression"
+
+            if self.config.problem_type != "regression":
+                raise ValueError(f"This is a regression model, but found {self.config.problem_type}")
+            loss_fct = MSELoss()
+            loss = loss_fct(value.squeeze(), labels.squeeze())
+
+        if not return_dict:
+            output = (value,)
+            return ((loss,) + output) if loss is not None else output
+
+        return SequenceClassifierOutput(
+            loss=loss,
+            logits=value,
+            hidden_states=outputs.hidden_states,
+            attentions=outputs.attentions,
+        )
 
 
 class ActionValueFn:
@@ -59,40 +184,28 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
-        load_pretrained = pathlib.Path(self._base_model).exists() and pathlib.Path(self._base_model).is_dir()
-        if load_pretrained:
-            config = ModernBertConfig.from_pretrained(self._base_model)
-        else:
-            config = ModernBertConfig(
-                classifier_activation="tanh",
-                classifier_bias=True,
-                classifier_dropout=0.05,
-                num_labels=1,
-                torch_dtype=torch.float32,
-                problem_type="regression",
-                device_map="cuda"
-            )
-
-        self.model = ModernBertForSequenceClassification.from_pretrained(
+        self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            config=config,
+            num_labels=1,
+            torch_dtype=torch.float32,
+            problem_type="regression",
+            device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
+        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
+        self.tokenizer.chat_template = (
+            "{% for i in range(0, messages|length, 2) %}"
+            "{% if i + 1 < messages|length %}"
+            "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
+            "{% endif %}"
+            "{% endfor %}"
+        )
+        self.model.resize_token_embeddings(len(self.tokenizer))
 
-        if not load_pretrained:
-            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-            self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
-            self.tokenizer.chat_template = (
-                "{% for i in range(0, messages|length, 2) %}"
-                "{% if i + 1 < messages|length %}"
-                "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
-                "{% endif %}"
-                "{% endfor %}"
-            )
-            self.model.resize_token_embeddings(len(self.tokenizer))
-
-        for name, param in self.model.named_parameters():
-            print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
+        # for name, param in self.model.named_parameters():
+        #     if name.startswith("classifier."):
+        #         print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
     def unload(self) -> None:
         if getattr(self, "model", None) is not None:
