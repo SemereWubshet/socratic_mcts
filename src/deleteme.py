@@ -1,7 +1,7 @@
 import pathlib
 
 import torch
-from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, PeftModel
+from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, PeftModel, AutoPeftModelForSequenceClassification
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 
@@ -34,10 +34,12 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     )
     model = get_peft_model(base_model, peft_config)
 
-    merged = model.merge_and_unload()
+    print(model.modules_to_save)
+
+    # merged = model.merge_and_unload()
 
     # Save LoRA adapter
-    merged.save_pretrained(path_to_dir)
+    model.save_pretrained(path_to_dir)
 
     # Save tokenizer
     tokenizer.save_pretrained(path_to_dir)
@@ -47,18 +49,18 @@ def reload_model(path_to_dir: pathlib.Path) -> None:
     print("reloading")
     tokenizer = AutoTokenizer.from_pretrained(path_to_dir)
 
-    base_model = AutoModelForSequenceClassification.from_pretrained(
-        str(path_to_dir),
-        torch_dtype=torch.float32,
-        device_map="cuda"
-    )
-
-    for name, param in base_model.named_parameters():
-        print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
+    # base_model = AutoModelForSequenceClassification.from_pretrained(
+    #     str(path_to_dir),
+    #     torch_dtype=torch.float32,
+    #     device_map="cuda"
+    # )
+    #
+    # for name, param in base_model.named_parameters():
+    #     print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
 
     config = PeftConfig.from_pretrained(str(path_to_dir))
-    model = PeftModel.from_pretrained(
-        base_model,
+    model = AutoPeftModelForSequenceClassification.from_pretrained(
+        # base_model,
         path_to_dir,
         is_trainable=True,
         device_map="cuda"
