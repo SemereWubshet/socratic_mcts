@@ -6,7 +6,7 @@ from typing import Union, Optional
 
 import torch
 import torch.nn as nn
-from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, AutoPeftModelForSequenceClassification
+from peft import LoraConfig, TaskType, get_peft_model, PeftConfig, AutoPeftModelForSequenceClassification, AutoPeftModel
 from torch.nn import MSELoss
 from transformers import AutoTokenizer, AutoModel, ModernBertConfig, PreTrainedModel
 from transformers.modeling_outputs import SequenceClassifierOutput
@@ -26,7 +26,7 @@ class ActionValueFunctionModel(ModernBertPreTrainedModel):
 
     def __init__(self, encoder: PreTrainedModel, config: ModernBertConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
-        self.num_labels = config.num_labels
+        self.num_labels = 1
         self.config = config
 
         self.model = encoder
@@ -180,6 +180,7 @@ def init_model(path_to_dir: pathlib.Path) -> None:
     # merged = model.merge_and_unload()
 
     # Save LoRA adapter
+    encoder.save_pretrained(path_to_dir)
     model.save_pretrained(path_to_dir)
 
     # Save tokenizer
@@ -190,21 +191,10 @@ def reload_model(path_to_dir: pathlib.Path) -> None:
     print("reloading")
     tokenizer = AutoTokenizer.from_pretrained(path_to_dir)
 
-    # base_model = AutoModelForSequenceClassification.from_pretrained(
-    #     str(path_to_dir),
-    #     torch_dtype=torch.float32,
-    #     device_map="cuda"
-    # )
-    #
-    # for name, param in base_model.named_parameters():
-    #     print(f"{name}: requires_grad={param.requires_grad}, mean={param.data.mean().item():.4f}")
+    encoder = AutoPeftModel.from_pretrained(str(path_to_dir))
 
-    config = PeftConfig.from_pretrained(str(path_to_dir))
-    model = AutoPeftModelForSequenceClassification.from_pretrained(
-        # base_model,
-        path_to_dir,
-        is_trainable=True,
-        device_map="cuda"
+    model = ActionValueFunctionModel.from_pretrained(
+        str(path_to_dir), encoder, config=ModernBertConfig(vocab_size=len(tokenizer)), device_map="cuda"
     )
 
     print()
