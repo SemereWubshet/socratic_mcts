@@ -616,7 +616,6 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
         gradient_accumulation_steps=1,
         warmup_steps=5,
         num_train_epochs=2,
-        weight_decay=0.01,
         lr_scheduler_type="linear",
     )
     trainer = SFTTrainer(
