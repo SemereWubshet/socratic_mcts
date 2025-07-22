@@ -623,7 +623,9 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
             )
             for c in examples["messages"]
         ]
-        print(_input)
+        print(_input[0])
+        if True:
+            raise ValueError
         return {"text": _input}
 
     dataset = dataset.map(prepare_prompts, batched=True)
