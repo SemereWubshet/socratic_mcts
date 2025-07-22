@@ -18,7 +18,7 @@ from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, \
     ModernBertConfig, \
-    ModernBertPreTrainedModel, ModernBertModel
+    ModernBertPreTrainedModel, ModernBertModel, DataCollatorWithPadding
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
 from trl import SFTConfig, SFTTrainer, GRPOConfig, GRPOTrainer
@@ -660,6 +660,7 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
         processing_class=tokenizer,
         train_dataset=dataset,
         args=training_args,
+        data_collator=DataCollatorWithPadding(tokenizer, padding="max_length", max_length=1024)
     )
     train_stats = trainer.train()
     with open(train_dir / "stf_train_stats.json", "w") as f:
