@@ -289,6 +289,8 @@ class Qwen(LLM):
             original_fn = self.tokenizer.apply_chat_template
 
             def patched_apply_chat_template(conversation, **kwargs):
+                print("in chat template: ")
+                print(conversation)
                 kwargs.setdefault("enable_thinking", False)
                 return original_fn(conversation, **kwargs)
 
@@ -546,32 +548,13 @@ def policy_train(
 
     def rwd_fn(history: List[List[Dict[str, str]]], completions: List[str], **kwargs) -> List[float]:
         print("history:")
-        print(history)
+        print(history[0])
         print("completions: ")
-        print(completions)
+        print(completions[0])
         combined = [p + [{"role": "assistant", "content": c}, ] for p, c in zip(history, completions)]
         print("combined: ")
-        print(combined)
+        print(combined[0])
         return [float(vf(c)) for c in combined]
-
-    def patch(
-            text: List[str],
-            return_tensors: str = "pt",
-            padding: bool = True,
-            padding_side: str = "left",
-            add_special_tokens: bool = False
-    ):
-        print("text: ")
-        print(text)
-        return model.tokenizer(
-            text,
-            return_tensors=return_tensors,
-            padding=padding,
-            padding_side=padding_side,
-            add_special_tokens=add_special_tokens
-        )
-
-    model.tokenizer.__call__ = patch
 
     trainer = GRPOTrainer(
         args=training_args,
