@@ -554,9 +554,10 @@ def policy_train(
         print(combined[0])
         return [float(vf(c)) for c in combined]
 
-    def patch(**kwargs):
+    def patch(*args, **kwargs):
+        print(args)
         print(kwargs)
-        return model.model.generate(**kwargs)
+        return model.model.generate(*args, **kwargs)
 
     model.model.generate = patch
 
