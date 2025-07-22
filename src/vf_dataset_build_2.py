@@ -66,16 +66,16 @@ class ActionValueFn:
             config = ModernBertConfig(
                 classifier_activation="tanh",
                 classifier_bias=True,
-                classifier_dropout=0.05
+                classifier_dropout=0.05,
+                num_labels=1,
+                torch_dtype=torch.float32,
+                problem_type="regression",
+                device_map="cuda"
             )
 
         self.model = ModernBertForSequenceClassification.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
             config=config,
-            # num_labels=1,
-            torch_dtype=torch.float32,
-            problem_type="regression",
-            device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
 
