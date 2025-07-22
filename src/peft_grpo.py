@@ -522,6 +522,9 @@ def policy_train(
 
     hf_dataset = Dataset.from_dict(dataset)
 
+    print("prompt:" )
+    print(hf_dataset["prompt"][0])
+
     # GRPO config
     training_args = GRPOConfig(
         learning_rate=1e-6,
@@ -541,7 +544,7 @@ def policy_train(
         print(history)
         print("completions: ")
         print(completions)
-        combined = [p + [c, ] for p, c in zip(history, completions)]
+        combined = [p + [{"role": "assistant", "content": c}, ] for p, c in zip(history, completions)]
         print("combined: ")
         print(combined)
         return [float(vf(c)) for c in combined]
