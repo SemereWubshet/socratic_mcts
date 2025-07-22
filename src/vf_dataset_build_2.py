@@ -183,7 +183,7 @@ class ActionValueFn:
             config=config,
             # torch_dtype=torch.float32,
             # problem_type="regression",
-            # device_map="cuda"
+            device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
         if not pathlib.Path(self._base_model).exists() or not pathlib.Path(self._base_model).is_dir():
