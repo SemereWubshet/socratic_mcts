@@ -282,6 +282,7 @@ class Qwen(LLM):
         )
 
         self.tokenizer.padding_side = "left"
+        self.tokenizer.pad_token = self.tokenizer.eos_token
 
         if for_inference:
             self.model = unsloth.FastLanguageModel.for_inference(self.model)
@@ -600,6 +601,9 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
         gpu_memory_utilization=0.7,  # Reduce if out of memory
     )
 
+    tokenizer.padding_side = "left"
+    tokenizer.pad_token = tokenizer.eos_token
+
     model = unsloth.FastLanguageModel.get_peft_model(
         model,
         r=128,
@@ -613,7 +617,6 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
 
     model.gradient_checkpointing_enable()  # https://github.com/huggingface/transformers/issues/30544
     tokenizer = unsloth.get_chat_template(tokenizer, chat_template="qwen3")
-    tokenizer.padding_side = "left"
 
     dataset = Dataset.load_from_disk(dataset_path)
 
@@ -629,9 +632,6 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
             )
             for c in examples["messages"]
         ]
-        print(_input[1])
-        if True:
-            raise ValueError
         return {"text": _input}
 
     dataset = dataset.map(prepare_prompts, batched=True)
