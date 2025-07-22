@@ -629,7 +629,7 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
             )
             for c in examples["messages"]
         ]
-        print(_input[0])
+        print(_input[1])
         if True:
             raise ValueError
         return {"text": _input}
