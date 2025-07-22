@@ -562,7 +562,11 @@ def policy_train(
         input_ids = args[0] if len(args) > 0 else kwargs["input_ids"]
         decoded = model.tokenizer.decode(token_ids=input_ids[0])
         print(decoded)
-        return old_method(*args, **kwargs)
+        generation = old_method(*args, **kwargs)
+        print(generation)
+        print('----')
+        print()
+        return generation
 
     model.model.generate = patch
 
