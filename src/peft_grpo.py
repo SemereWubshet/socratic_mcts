@@ -681,7 +681,6 @@ if __name__ == "__main__":
         interactions_path = train_it_dir / "interactions.json"
         evaluations_path = train_it_dir / "evaluations.json"
         action_vfn_model_dir = train_it_dir / "action_value_fn"
-        dpo_dataset = train_it_dir / "dpo_dataset.json"
         policy_model_dir = train_it_dir / "policy_fn"
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
@@ -704,7 +703,6 @@ if __name__ == "__main__":
         print(f"interactions_path={interactions_path}")
         print(f"evaluations_path={evaluations_path}")
         print(f"action_vfn_model_dir={action_vfn_model_dir}")
-        print(f"dpo_dataset={dpo_dataset}")
         print(f"policy_model_dir={policy_model_dir}")
         print(f"previous_iteration={previous_iteration}")
         print(f"current_policy_path={current_policy_path}")
@@ -774,39 +772,22 @@ if __name__ == "__main__":
                 stats["vf_training"]["train"].append(d)
                 stats_path.write_text(json.dumps(stats))
 
-        if not dpo_dataset.exists():
-            print()
-            print("#### Preparing for DPO training")
-
-            print(f"evaluations_path={evaluations_path}")
-            print(f"action_vfn_model_dir={action_vfn_model_dir}")
-            print(f"current_policy_path={current_policy_path}")
-            print(f"dpo_dataset={dpo_dataset}")
-
-            stats["dpo"] = prepare_for_dpo(
-                evaluations_path,
-                action_vfn_model_dir,
-                current_policy_path,
-                dpo_dataset
-            )
-            stats_path.write_text(json.dumps(stats))
-
         print()
         print("#### Policy training")
 
-        print(f"dpo_dataset={dpo_dataset}")
+        print(f"evaluations_oath={evaluations_path}")
         print(f"current_policy_path={current_policy_path}")
         print(f"policy_checkpoints={policy_checkpoints}")
+        print(f"action_vfn_model_dir={action_vfn_model_dir}")
         print(f"policy_model_dir={policy_model_dir}")
 
-        d = policy_train(
-            dpo_dataset,
+        stats["grpo"] = policy_train(
+            evaluations_path,
             current_policy_path,
+            action_vfn_model_dir,
             policy_checkpoints,
             policy_model_dir
         )
-
-        stats["policy_training"] = d
 
         print(stats)
 
