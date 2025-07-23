@@ -37,7 +37,7 @@ if __name__ == "__main__":
     print(len(inputs.input_ids[0]))
 
     outputs = llm.model.generate(
-        **inputs, max_new_tokens=128, do_sample=True, temperature=0.
+        **inputs, max_new_tokens=128, do_sample=True, temperature=0.1
     )
 
     decoded = llm.tokenizer.decode(outputs, skip_special_tokens=True)
