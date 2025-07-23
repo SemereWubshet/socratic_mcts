@@ -37,7 +37,7 @@ if __name__ == "__main__":
     print(len(inputs.input_ids[0]))
 
     outputs = llm.model.generate(
-        **inputs, max_new_tokens=128, do_sample=True, temperature=0.1
+        **inputs, max_new_tokens=128, do_sample=True, temperature=0.01
     )
 
     print(outputs[0])
@@ -46,3 +46,15 @@ if __name__ == "__main__":
     decoded = llm.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
     print(decoded)
+
+
+    print("single call")
+    print()
+
+    print(llm.query(messages[0]))
+
+    print()
+
+    print(llm.query(messages[1]))
+
+
