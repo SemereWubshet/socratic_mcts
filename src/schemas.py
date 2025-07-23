@@ -97,7 +97,7 @@ class EvaluationDataset(BaseModel):
         return [e for e in self.evaluations if e.assessment is not None]
 
     def avg_performance(self) -> float:
-        return np.mean([e.assessment for e in self.get_valid()])
+        return float(np.mean([e.assessment for e in self.get_valid()]))
 
 
 class JudgeDataset(BaseModel):

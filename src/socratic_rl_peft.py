@@ -391,7 +391,7 @@ def vf_rollout(
     all_preds = np.array(all_preds)
     all_targets = np.array(all_targets)
     vf_loss = float(np.mean((all_preds - all_targets) ** 2))
-    explained_var = 1. - np.var(all_targets - all_preds) / (np.var(all_targets) + 1e-8)
+    explained_var = float(1. - np.var(all_targets - all_preds) / (np.var(all_targets) + 1e-8))
     _min = float(np.min(all_preds))
     _max = float(np.max(all_preds))
 
