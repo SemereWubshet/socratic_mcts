@@ -17,7 +17,7 @@ if __name__ == "__main__":
             {"role": "user", "content": "What's the capital of Brazil?"},
             {"role": "assistant", "content": "What are big cities in Brazil?"},
             {"role": "user", "content": "Rio, São Paulo, Brasíla, Porto Alegre..."}
-        ]
+        ],
         [
             {"role": "user", "content": "What's the capital of Brazil?"}
         ]
