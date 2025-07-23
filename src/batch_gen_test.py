@@ -51,10 +51,10 @@ if __name__ == "__main__":
     print("single call")
     print()
 
-    print(llm.query(messages[0]))
+    print(llm.query(messages[0], temperature=0.01))
 
     print()
 
-    print(llm.query(messages[1]))
+    print(llm.query(messages[1], temperature=0.01))
 
 
