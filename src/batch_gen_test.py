@@ -9,6 +9,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     llm = Qwen(str(args.BASE_MODEL))
+    llm.load(for_inference=True)
 
     print("Q: What's the capital of Brazil?")
 
