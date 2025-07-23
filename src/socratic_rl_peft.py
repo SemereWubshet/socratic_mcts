@@ -580,6 +580,8 @@ def stf_warmup(dataset_path: pathlib.Path, train_dir: pathlib.Path, pretrained_d
 
     training_args = SFTConfig(
         max_seq_length=1024,
+        per_device_train_batch_size=4,
+        num_train_epochs=2.,
         output_dir=train_dir / "stf",
     )
     trainer = SFTTrainer(
