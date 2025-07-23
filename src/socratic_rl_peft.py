@@ -507,7 +507,12 @@ def policy_train(
         output_dir: pathlib.Path
 ) -> Dict[str, Any]:
     dict_train_dataset = json.loads(dataset_path.read_text(encoding="UTF-8"))
-    train_dataset = Dataset.from_dict(dict_train_dataset)
+    cleaned = {
+        "prompt": dict_train_dataset["prompt"],
+        "chosen": dict_train_dataset["chosen"],
+        "rejected": dict_train_dataset["rejected"]
+    }
+    train_dataset = Dataset.from_dict(cleaned)
     train_dataset = train_dataset.shuffle()
 
     qwen = Qwen(str(policy_path))
