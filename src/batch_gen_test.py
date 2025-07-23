@@ -29,7 +29,9 @@ if __name__ == "__main__":
 
     print(raw_prompts)
 
-    inputs = llm.tokenizer(raw_prompts, padding="max_length", padding_side="left", return_tensors="pt").to("cuda")
+    inputs = llm.tokenizer(
+        raw_prompts, max_length=llm.max_length, padding="max_length", padding_side="left", return_tensors="pt"
+    ).to("cuda")
 
     print(inputs)
     print(len(inputs.input_ids[0]))
