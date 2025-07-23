@@ -460,6 +460,8 @@ def prepare_for_dpo(
 
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024)
 
+    vs_chosen = []
+    vs_rejected = []
     dataset = {"prompt": [], "chosen": [], "rejected": [], "evaluations": []}
     for t, cl1, cl2, cl3, cl4 in tqdm(completions, desc="DPO eval samples"):
         v1 = float(action_value_fn(t + cl1))
@@ -472,13 +474,16 @@ def prepare_for_dpo(
         dataset["prompt"].append(t)
         dataset["evaluations"].append(evaluations)
 
-        ordered = [k for (k, v) in sorted(evaluations, key=lambda e: e[1])]
+        ordered = sorted(evaluations, key=lambda e: e[1])
 
-        chosen = ordered[-1]
-        rejected = ordered[0]
+        chosen, v_chosen = ordered[-1]
+        rejected, v_rejected = ordered[0]
 
         dataset["chosen"].append(chosen)
         dataset["rejected"].append(rejected)
+
+        vs_chosen.append(v_chosen)
+        vs_rejected.append(v_rejected)
 
     action_value_fn.unload()
 
@@ -486,12 +491,12 @@ def prepare_for_dpo(
         f.write(json.dumps(dataset))
 
     return {
-        "mean_v_chosen": np.mean(dataset["v_chosen"]),
-        "max_v_chosen": np.max(dataset["v_chosen"]),
-        "min_v_chosen": np.min(dataset["v_chosen"]),
-        "mean_v_rejected": np.mean(dataset["v_rejected"]),
-        "max_v_rejected": np.max(dataset["v_rejected"]),
-        "min_v_rejected": np.min(dataset["v_rejected"]),
+        "mean_v_chosen": float(np.mean(vs_chosen)),
+        "max_v_chosen": float(np.max(vs_chosen)),
+        "min_v_chosen": float(np.min(vs_chosen)),
+        "mean_v_rejected": float(np.mean(vs_rejected)),
+        "max_v_rejected": float(np.max(vs_rejected)),
+        "min_v_rejected": float(np.min(vs_rejected)),
     }
 
 
