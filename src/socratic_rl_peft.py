@@ -445,34 +445,40 @@ def prepare_for_dpo(
             ]
             c1 = model.query(trajectory, temperature=2.1)
             c2 = model.query(trajectory, temperature=2.1)
+            c3 = model.query(trajectory, temperature=2.1)
+            c4 = model.query(trajectory, temperature=2.1)
             completions.append(
                 (
                     trajectory,
                     [{"role": "assistant", "content": c1}],
-                    [{"role": "assistant", "content": c2}]
+                    [{"role": "assistant", "content": c2}],
+                    [{"role": "assistant", "content": c3}],
+                    [{"role": "assistant", "content": c4}]
                 )
             )
     model.unload()
 
     action_value_fn = ActionValueFn(action_value_fn_path, max_length=1024)
 
-    dataset = {"prompt": [], "chosen": [], "rejected": [], "v_chosen": [], "v_rejected": []}
-    for t, cl1, cl2 in tqdm(completions, desc="DPO eval samples"):
+    dataset = {"prompt": [], "chosen": [], "rejected": [], "evaluations": []}
+    for t, cl1, cl2, cl3, cl4 in tqdm(completions, desc="DPO eval samples"):
         v1 = float(action_value_fn(t + cl1))
         v2 = float(action_value_fn(t + cl2))
+        v3 = float(action_value_fn(t + cl3))
+        v4 = float(action_value_fn(t + cl4))
+
+        evaluations = [(cl1, v1), (cl2, v2), (cl3, v3), (cl4, v4)]
 
         dataset["prompt"].append(t)
+        dataset["evaluations"].append(evaluations)
 
-        if v1 >= v2:
-            dataset["chosen"].append(cl1)
-            dataset["v_chosen"].append(v1)
-            dataset["rejected"].append(cl2)
-            dataset["v_rejected"].append(v2)
-        else:
-            dataset["chosen"].append(cl2)
-            dataset["v_chosen"].append(v2)
-            dataset["rejected"].append(cl1)
-            dataset["v_rejected"].append(v1)
+        ordered = [k for (k, v) in sorted(evaluations, key=lambda e: e[1])]
+
+        chosen = ordered[-1]
+        rejected = ordered[0]
+
+        dataset["chosen"].append(chosen)
+        dataset["rejected"].append(rejected)
 
     action_value_fn.unload()
 
