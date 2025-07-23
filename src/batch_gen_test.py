@@ -32,6 +32,7 @@ if __name__ == "__main__":
     inputs = llm.tokenizer(raw_prompts, padding="max_length", padding_side="left", return_tensors="pt").to("cuda")
 
     print(inputs)
+    print(len(inputs.input_ids[0]))
 
     outputs = llm.model.generate(
         **inputs, max_new_tokens=128, do_sample=True, temperature=0.
