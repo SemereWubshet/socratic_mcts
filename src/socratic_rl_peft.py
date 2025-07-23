@@ -17,7 +17,7 @@ from torch import nn
 from torch.nn import MSELoss
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainingArguments, Trainer, \
-    ModernBertForSequenceClassification, ModernBertConfig, \
+    ModernBertConfig, \
     ModernBertPreTrainedModel, ModernBertModel
 from transformers.modeling_outputs import SequenceClassifierOutput
 from transformers.models.modernbert.modeling_modernbert import ModernBertPredictionHead
@@ -58,9 +58,12 @@ def discount_cumsum(x: np.ndarray, gamma: float) -> np.ndarray:
     return scipy.signal.lfilter([1], [1, float(-gamma)], x[::-1], axis=0)[::-1]
 
 
-class ActionValueFunctionModel(ModernBertForSequenceClassification):
+class ActionValueFunctionModel(ModernBertPreTrainedModel):
+    """Heavily inspired from ModernBertForSequenceClassification, but with a Tahn value head on the top of the model."""
+    _supports_flash_attn_2 = False
+
     def __init__(self, config: ModernBertConfig):
-        super(ModernBertPreTrainedModel, self).__init__(config)
+        super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
 
@@ -72,6 +75,28 @@ class ActionValueFunctionModel(ModernBertForSequenceClassification):
 
         # Initialize weights and apply final processing
         self.post_init()
+
+    def _init_weights(self, module: nn.Module):
+        super()._init_weights(module)
+        cutoff_factor = self.config.initializer_cutoff_factor
+        if cutoff_factor is None:
+            cutoff_factor = 3
+
+        def init_weight(module: nn.Module, std: float):
+            nn.init.trunc_normal_(
+                module.weight,
+                mean=0.0,
+                std=std,
+                a=-cutoff_factor * std,
+                b=cutoff_factor * std,
+            )
+
+            if isinstance(module, nn.Linear):
+                if module.bias is not None:
+                    nn.init.zeros_(module.bias)
+
+        if isinstance(module, ActionValueFunctionModel):
+            init_weight(module.classifier, self.config.hidden_size ** -0.5)
 
     def forward(
             self,
@@ -188,24 +213,30 @@ class ActionValueFn:
         self.tokenizer.save_pretrained(path)
 
     def load(self) -> None:
+        config = ModernBertConfig.from_pretrained(
+            self._base_model,
+            num_labels=1,
+            classifier_dropout=0.05,
+            torch_dtype="float32",
+            problem_type="regression"
+        )
         self.model = ActionValueFunctionModel.from_pretrained(
             pretrained_model_name_or_path=self._base_model,
-            num_labels=1,
-            torch_dtype=torch.float32,
-            problem_type="regression",
+            config=config,
             device_map="cuda"
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self._base_model)
-        self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
-        self.tokenizer.chat_template = (
-            "{% for i in range(0, messages|length, 2) %}"
-            "{% if i + 1 < messages|length %}"
-            "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
-            "{% endif %}"
-            "{% endfor %}"
-        )
-        self.model.resize_token_embeddings(len(self.tokenizer))
+        if not pathlib.Path(self._base_model).exists() or not pathlib.Path(self._base_model).is_dir():
+            self.tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+            self.tokenizer.add_tokens(["[USER]", "[/USER]", "[EOT]"])
+            self.tokenizer.chat_template = (
+                "{% for i in range(0, messages|length, 2) %}"
+                "{% if i + 1 < messages|length %}"
+                "[USER]{{ messages[i].content }}[/USER] {{ messages[i+1].content }}[EOT]\n"
+                "{% endif %}"
+                "{% endfor %}"
+            )
+            self.model.resize_token_embeddings(len(self.tokenizer))
 
         # for name, param in self.model.named_parameters():
         #     if name.startswith("classifier."):
