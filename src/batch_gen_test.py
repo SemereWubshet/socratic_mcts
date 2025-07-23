@@ -40,6 +40,6 @@ if __name__ == "__main__":
         **inputs, max_new_tokens=128, do_sample=True, temperature=0.1
     )
 
-    decoded = llm.tokenizer.decode(outputs, skip_special_tokens=True)
+    decoded = llm.tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
     print(decoded)
