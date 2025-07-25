@@ -32,7 +32,7 @@ class LLM(abc.ABC):
         ...
 
     def unload(self) -> None:
-        pass
+        ...
 
 
 class ConversationSeeder(abc.ABC):
@@ -48,6 +48,9 @@ class ConversationSeeder(abc.ABC):
     @abc.abstractmethod
     def interaction_types(self) -> Tuple[Dict[str, str]]:
         ...
+
+    def seed_llm(self) -> Optional[str]:
+        return None
 
 
 class ContentSeeder(ConversationSeeder):
@@ -149,11 +152,249 @@ class ContentSeeder(ConversationSeeder):
             return match.group("question"), match.group("topics")
 
         raise LLMProcessingFailure(
-            f"Failed getting LLM to output correct JSON for \n\n\n{source_content}\n\n\noutput: {output}"
+            f"Failed getting LLM to output correct for \n\n\n{source_content}\n\n\noutput: {output}"
         )
+
+    def seed_llm(self) -> Optional[str]:
+        return self._llm.model_name
+
+
+class Student(abc.ABC):
+
+    @abc.abstractmethod
+    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
+        ...
+
+    @abc.abstractmethod
+    def system_prompt(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def message_prompt(self) -> str:
+        ...
+
+    def llm(self) -> Optional[str]:
+        return None  # TODO: maybe inner access to llm (for GPU unloading...)
+
+    @abc.abstractmethod
+    def student_types(self) -> Tuple[str]:
+        ...
+
+
+class StudentX(Student):  # TODO: better naming!
+
+    def __init__(self, llm: LLM, max_trials: int = 10):
+        self._llm = llm
+        self._max_trials = max_trials
+
+    def system_prompt(self) -> str:
+        return (
+            "# Instructions\n"
+            "\n"
+            "{student_type}\n"
+            "\n"
+            "Continue the conversation with a teacher by making concise replies.If you explored all the main topics, "
+            "thanks the teacher and terminate the conversation.Only hint the teacher about the direction you want to "
+            "develop your leaning if the teacher explicitly asks about the subject you are trying to learn.Otherwise, "
+            "reply to the teacher in a constructive way.\n"
+            "\n"
+            "# Output Format\n"
+            "\n"
+            "Your evaluation must start with a concise response to the teacher followed by the token[END] if you wish "
+            "to stop the conversation or[CONTINUE] if you want to engage with the teacher for yet another round.Do not "
+            "output opening or closing statements.\n"
+            "\n"
+            "# Examples\n"
+            "\n"
+            "# Main topics\n"
+            "- Definition of Rayleigh Scattering\n"
+            "- Wavelength Dependence\n"
+            "- Atmospheric Molecules\n"
+            "\n"
+            "# Chat History\n"
+            "Student: Why is the sky blue?\n"
+            "Teacher: To begin, have you ever wondered what exactly we see when we look at the sky? What is it made "
+            "of, and how does it interact with light?\n"
+            "Student: The sky is made of molecules of mostly oxygen, nitrogen and carbon dioxide.\n"
+            "Teacher: When sunlight reaches the Earth, it doesn’t just come as a single color, but as a mix of many "
+            "colors.Why do you think, then, that we see the sky as blue instead of any other color? What might cause "
+            "sunlight to change as it passes through the atmosphere?\n"
+            "\n"
+            "OUTPUT: Sunlite collision with air molecules changes their wavelengths?[CONTINUE]\n"
+            "\n"
+            "---\n"
+            "\n"
+            "# Main topics\n"
+            "- Definition of Rayleigh Scattering\n"
+            "- Wavelength Dependence\n"
+            "- Atmospheric Molecules\n"
+            "\n"
+            "# Chat History\n"
+            "Student: Why is the sky blue?\n"
+            "Teacher: To begin, have you ever wondered what exactly we see when we look at the sky? What is it made "
+            "of, and how does it interact with light?\n"
+            "Student: The sky is made of molecules of mostly oxygen, nitrogen and carbon dioxide.\n"
+            "Teacher: When sunlight reaches the Earth, it doesn’t just come as a single color, but as a mix of many "
+            "colors.Why do you think, then, that we see the sky as blue instead of any other color? What might cause "
+            "sunlight to change as it passes through the atmosphere?\n"
+            "Student: The sky looks blue because sunlight is made of many colors, and blue light is scattered the most "
+            "by air molecules.This happens because blue has a shorter wavelength.\n"
+            "Teacher: Rayleigh scattering is the scattering of light or electromagnetic radiation by particles much "
+            "smaller than the wavelength of the light.How do you think that plays out with human sight?\n"
+            "\n"
+            "OUTPUT:  We don’t see violet much because our eyes are less sensitive to it, and some violet light is "
+            "absorbed by the atmosphere.As sunlight passes through the atmosphere, scattering spreads blue light in "
+            "all directions, making the sky appear blue.Now, I get it why the sky is blue.Thank you so much for the "
+            "help.[END]\n"
+            "\n"
+            "---\n"
+            "\n"
+            "# Main topics\n"
+            "- Definition of Rayleigh Scattering\n"
+            "- Wavelength Dependence\n"
+            "- Atmospheric Molecules\n"
+            "\n"
+            "Student: Why is the sky blue?\n"
+            "# Chat History\n"
+            "Teacher: To begin, have you ever wondered what exactly we see when we look at the sky? What is it made "
+            "of, and how does it interact with light?\n"
+            "Student: Maybe that's related to limitations of human sight?\n"
+            "Teacher: Indeed there are biological factors that count.Are you more interested in learning more about "
+            "the biological factors or the physics factors?\n"
+            "\n"
+            "OUTPUT: I'm much more interested in the physics factors. [CONTINUE]"
+        )
+
+    def message_prompt(self) -> str:
+        return "# Main topics\n{main_topics}\n\n# Chat History\n{chat_history}\n\nOUTPUT: "
+
+    def student_types(self) -> Tuple[str]:
+        return (
+            "You are a student who grasps and applies concepts effortlessly across domains. However, you tend to "
+            "disengage or prematurely conclude discussions when the topic doesn't feel intellectually challenging or "
+            "novel.",
+            "You are a student who is highly inquisitive and learns quickly, but your curiosity often leads you down "
+            "tangential paths, making it difficult to stay focused on the core topic.",
+            "You are a student who is enthusiastic but easily distracted by unrelated ideas or stimuli. You "
+            "need reminders to focus on the main learning objective.",
+            "You are a student who learns quickly and has a tendency to overestimate your understanding, "
+            "occasionally dismissing important foundational concepts or alternative perspectives.",
+            "You are a student who processes information quickly but occasionally jumps to incorrect conclusions, "
+            "sometimes due to overlooking nuance or failing to verify assumptions.",
+            "You are a student who learns best with clear examples, analogies, and plenty of patience, especially when "
+            "dealing with abstract concepts. Once you understand, you retain knowledge deeply.",
+            "You are a student who is enthusiastic and eager to learn, but you find it challenging to develop "
+            "independent critical thinking skills and rely heavily on guidance or structure.",
+        )
+
+    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
+        system_prompt = self.system_prompt().format(**kwargs)
+        source_content = self.message_prompt().format(**kwargs)
+
+        trials = 0
+        answer = ""
+        while trials < self._max_trials:
+            answer = self._llm.query(
+                [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": source_content}
+                ]
+            )
+
+            match = re.findall(r"\[END]|\[CONTINUE]", answer)
+
+            if len(match) != 1:
+                trials += 1
+                continue
+
+            decision = match[0]
+
+            if decision == "[END]":
+                return answer.replace("[END]", "").strip(), True
+            else:
+                return answer.replace("[CONTINUE]", "").strip(), False
+
+        raise LLMProcessingFailure(
+            f"Failed getting LLM to output correct for \n\n\n{source_content}\n\n\noutput: {answer}"
+        )
+
+    def llm(self) -> Optional[str]:
+        return self._llm.model_name
+
+
+class Teacher(abc.ABC):
+
+    def __init__(self, llm: LLM):
+        self._llm = llm
+
+    @abc.abstractmethod
+    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
+        ...
+
+    @abc.abstractmethod
+    def system_prompt(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def message_prompt(self) -> str:
+        ...
+
+    def llm(self) -> Optional[str]:
+        return None  # TODO: maybe inner access to llm (for GPU unloading...)
+
+
+class TeacherX(Teacher):
+
+    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
+        pass
+
+    def system_prompt(self) -> str:
+        return (
+            "# Instructions\n"
+            "\n"
+            "You are a Socratic tutor.Use the following principles in responding to students:\n"
+            "\n"
+            "- Ask thought-provoking, open-ended questions that challenge students' preconceptions and encourage them "
+            "to engage in deeper reflection and critical thinking.\n"
+            "- Facilitate open and respectful dialogue among students, creating an environment where diverse "
+            "viewpoints are valued and students feel comfortable sharing their ideas.\n"
+            "- Actively listen to students' responses, paying careful attention to their underlying thought "
+            "processes and making a genuine effort to understand their perspectives.\n"
+            "- Guide students in their exploration of topics by encouraging them to discover answers independently, "
+            "rather than providing direct answers, to enhance their reasoning and analytical skills.\n"
+            "- Promote critical thinking by encouraging students to question assumptions, evaluate evidence, and "
+            "consider alternative viewpoints in order to arrive at well-reasoned conclusions.\n"
+            "- Demonstrate humility by acknowledging your own limitations and uncertainties, modeling a growth mindset "
+            "and exemplifying the value of lifelong learning.\n"
+            "- Keep interactions short, limiting yourself to one question at a time and to concise explanations.\n"
+            "-If the student signals that he understood the topic, and that is indeed the case, ask him if he is "
+            "interested into delving even deeper into the subject.However, if you believe that the student has not "
+            "yet fully understood the topic, explain yourself and ask a thought-provoking question to probe the flaws "
+            "in his understanding.\n"
+            "\n"
+            "You are provided conversation between a teacher (assistant) and a student(user) sometimes preceded by a "
+            "text on a specific topic.Generate an answer to the last student 's line.\n"
+            "\n"
+            "# Example\n"
+            "\n"
+            "# Chat history\n"
+            "Student: I have to calculate the square of the binomial $(a+b)^2.\n"
+            "Teacher: I\'d be happy to help you! Can you walk me through your solution?\n"
+            "Student: Yes.I think $(a + b)^2 = a^2 + b^2$\n"
+            "\n"
+            "OUTPUT: That\'s almost correct, but it\'s missing an important term.Can you try to calculate (a + b) * "
+            "(a + b) using the distributive property of multiplication?"
+        )
+
+    def message_prompt(self) -> str:
+        return "# Chat history\n{chat_history}\n\nOUTPUT: "
+
+    def llm(self) -> Optional[str]:
+        return super().llm()
 
 
 class Metadata(pydantic.BaseModel):
+    seed_llm: Optional[str] = None
     student_llm: Optional[str] = None
     teacher_llm: Optional[str] = None
     judge_llm: Optional[str] = None
@@ -213,12 +454,12 @@ class Emitter(Generic[T, U]):
             raise ValueError("Must specify both next_stage and next_emitter or neither.")
 
         self._stage = stage
-        self.next_emitter = next_emitter
+        self._next_emitter = next_emitter
         self._tracker = tracker
 
     def emit(self, sample: T) -> None:
-        if self._stage and self.next_emitter:
-            self._stage.process(sample, self.next_emitter)
+        if self._stage and self._next_emitter:
+            self._stage.process(sample, self._next_emitter)
 
     def add(self, name: str) -> None:
         self._tracker[name] = self._tracker.get(name, 0) + 1
@@ -270,20 +511,82 @@ class PrincetonChapters(Generic[T], DataSource[T]):
             i += 1
 
 
-class SeedStage(Stage[str, Seed]):
+class SeedStage(Stage[str, Record]):
 
     def __init__(self, seeder: ConversationSeeder):
         self._seeder = seeder
         self._num_interactions = len(self._seeder.interaction_types())
+        self._id = 0
 
-    def process(self, sample: str, emitter: Emitter[Seed]) -> None:
-        interaction_type = random.randint(0, self._num_interactions - 1)
-        question, topics = self._seeder.gen_seed(sample, **self._seeder.interaction_types()[interaction_type])
-        seed = Seed(source_content=sample, question=question, main_topics=topics, interaction_type=interaction_type)
-        emitter.emit(seed)
+    def process(self, sample: str, emitter: Emitter[Record]) -> None:
+        interaction_type = random.choice(self._seeder.interaction_types())
 
-    def cleanup(self, emitter: Emitter[List[Seed]]) -> None:
-        pass
+        emitter.add("seed.in")
+
+        question, topics = None, None
+        try:
+            question, topics = self._seeder.gen_seed(sample, **interaction_type)
+        except LLMProcessingFailure:
+            emitter.add("seed.failure")
+
+        record = Record(id=self._id)
+        record.metadata.seed_llm = self._seeder.seed_llm()
+        record.seed.interaction_type = interaction_type["interaction_type"]
+        record.seed.question = question
+        record.seed.main_topics = topics
+        record.seed.source_content = sample
+        emitter.emit(record)
+
+        self._id += 1
+        emitter.add("seed.out")
+
+
+class ChatStage(Stage[List[Record], List[Record]]):
+
+    def __init__(self, student: Student, teacher: Agent, max_interactions: int = 16):
+        self._student = student
+        self._teacher = teacher
+        self._max_interactions = max_interactions
+
+    def process(self, sample: List[Record], emitter: Emitter[List[Record]]) -> None:
+        for s in filter(lambda _s: s.seed.question is not None, sample):
+            s: Record
+            chat_history = ChatHistory(root=[Message(role="Student", content=s.seed.question, end=False)])
+            s.chat_history = chat_history
+            s.metadata.max_interactions = self._max_interactions
+            s.metadata.student_llm = self._student.llm()
+            s.metadata.teacher_llm = self._teacher.llm()
+            s.student_type = random.choice(self._student.student_types())
+            emitter.add("chat_stage.eligible")
+
+        for i in range(self._max_interactions):
+            for s in filter(lambda _s: _s.seed.question is not None and not _s.chat_history.root[-1].end, sample):
+                student_message = s.chat_history.root[-1]
+                try:
+                    teacher_reply: Message = self._teacher.query(student_message)
+                except LLMProcessingFailure:
+                    # TODO: whoops
+                    #       1. manage the failure loop
+                    #       2. add a counter somewhere
+                    continue
+                s.chat_history.root.append(teacher_reply)
+
+            for s in filter(lambda _s: _s.seed.question is not None and not _s.chat_history.root[-1].end, sample):
+                teacher_message = s.chat_history.root[-1]
+
+                try:
+                    student_reply: Message = self._student.query(
+                        teacher_message,
+                        student_type=s.student_type,
+                        main_topics=s.seed.main_topics,
+                        chat_history=str(s.chat_history)
+                    )
+                except LLMProcessingFailure:
+                    # TODO: whoops
+                    continue
+                s.chat_history.root.append(student_reply)
+
+        emitter.emit(sample)
 
 
 class BufferStage(Stage[T, List[T]]):
@@ -386,7 +689,10 @@ if __name__ == "__main__":
     )
     items, t = pipeline.run()
 
-    bench = SocraticBench.from_data(strsource)  # type: SocraticBench[str]
+    bench = (
+        SocraticBench.from_data(strsource)  # type: SocraticBench[str]
+        .batch()
+    )
     # b2 = bench.apply(Tokenize())
     # b3 = b2.apply(Count())
     print(items)
