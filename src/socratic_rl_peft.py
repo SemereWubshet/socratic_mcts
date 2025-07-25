@@ -654,6 +654,7 @@ if __name__ == "__main__":
     policy_checkpoints = train_dir / "policy_checkpoints"
     value_checkpoints = train_dir / "value_checkpoints"
     init_q_path = train_dir / "init_q"
+    seeds_path = train_dir / "seeds.json"
 
     if not stf_pretrained.exists():
         print(f" -------------------- ------------------ starting STF -------------------- ------------------")
@@ -669,13 +670,20 @@ if __name__ == "__main__":
         action_value_fn.unload()
         del action_value_fn
 
-    textbooks = load_dataset("princeton-nlp/TextbookChapters")
+    if not seeds_path.exists():
+        textbooks = load_dataset("princeton-nlp/TextbookChapters")
+        seed_dataset = gen_seeds(
+            textbooks,
+            student,
+            num_of_conversations=256  # ~num of student types
+        )
+        seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
+
     for i in range(args.num_iterations):
         train_it_dir = train_dir / f"iteration_{i}"
         train_it_dir.mkdir(exist_ok=True)
 
         stats_path = train_it_dir / "stats.json"
-        seeds_path = train_it_dir / "seeds.json"
         interactions_path = train_it_dir / "interactions.json"
         evaluations_path = train_it_dir / "evaluations.json"
         action_vfn_model_dir = train_it_dir / "action_value_fn"
@@ -707,14 +715,6 @@ if __name__ == "__main__":
         print(f"previous_iteration={previous_iteration}")
         print(f"current_policy_path={current_policy_path}")
         print(f"current_vf_path={current_vf_path}")
-
-        if not seeds_path.exists():
-            seed_dataset = gen_seeds(
-                textbooks,
-                student,
-                num_of_conversations=math.floor(num_conversations / 8)  # ~num of student types
-            )
-            seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
 
         if not interactions_path.exists():
             print()
