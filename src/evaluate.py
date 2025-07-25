@@ -86,8 +86,9 @@ def gen_teacher_student_interactions(
     pbar = tqdm(total=total_possible_queries, desc="Simulating dialogs", unit="query")
 
     # Prepare initial state
-    for seed in seeds.root:
+    for _ in range(128):
         stype = random.choice(Student.TYPES)
+        seed = random.choice(seeds.root)
         student = Student(student_llm, seed.main_topics, stype)
 
         history = ChatHistory(root=[Message(role="Student", content=seed.question, end=False)])

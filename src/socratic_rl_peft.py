@@ -619,9 +619,9 @@ if __name__ == "__main__":
     parser.add_argument("--num-iterations", required=True, type=int, help="Number of training iterations")
     parser.add_argument("--stf-dataset", required=True, type=pathlib.Path, help="Path to dataset to be used for STF")
     parser.add_argument("--ollama-client", type=str, required=True, help="Address to ollama server")
-    parser.add_argument(
-        "--num-conversations", required=True, type=int, help="Number of training examples on each iteration"
-    )
+    # parser.add_argument(
+    #     "--num-conversations", required=True, type=int, help="Number of training examples on each iteration"
+    # )
     parser.add_argument(
         "--max-interactions", default=8, type=int, help="Max number of student-teacher rounds"
     )
@@ -640,6 +640,8 @@ if __name__ == "__main__":
                 child.unlink()
             elif child.is_dir():
                 shutil.rmtree(child)
+
+    num_conversations: int = 128
 
     train_dir: pathlib.Path = root_dir / "train"
     train_dir.mkdir(exist_ok=True, parents=True)
@@ -707,7 +709,11 @@ if __name__ == "__main__":
         print(f"current_vf_path={current_vf_path}")
 
         if not seeds_path.exists():
-            seed_dataset = gen_seeds(textbooks, student, num_of_conversations=args.num_conversations)
+            seed_dataset = gen_seeds(
+                textbooks,
+                student,
+                num_of_conversations=math.floor(num_conversations / 8)  # ~num of student types
+            )
             seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
 
         if not interactions_path.exists():
