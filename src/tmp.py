@@ -3,10 +3,12 @@ from __future__ import annotations
 import abc
 import random
 import re
-from typing import List, TypeVar, Generic, Tuple, Optional, Generator, Type, Dict, Any
+from typing import List, TypeVar, Generic, Tuple, Optional, Generator, Type, Dict, Any, Union
 
+import openai
 import pydantic
 from datasets import load_dataset
+from openai import NotGiven, NOT_GIVEN, Client
 
 T = TypeVar('T')  # Input or current type
 U = TypeVar('U')  # Output or next type
@@ -33,6 +35,34 @@ class LLM(abc.ABC):
 
     def unload(self) -> None:
         ...
+
+
+class OpenAILLM(LLM):
+
+    def __init__(self, model: str, client: openai.OpenAI, temperature: Union[float | NotGiven] = NOT_GIVEN):
+        self._model = model
+        self._client = client
+        self._temperature = temperature
+
+    def query(self, messages: List[Dict[str, str]]) -> str:
+        response = self._client.chat.completions.create(
+            model=self._model, messages=messages, temperature=self._temperature
+        )
+        return response.choices[0].message.content
+
+    def healthcheck(self) -> None:
+        try:
+            models = self._client.models.list()
+        except openai.AuthenticationError as e:
+            raise ValueError("Unable to authenticate at OpenAI. Check if key is valid.", e)
+
+        available_models = [m.id for m in models]
+        if self._model not in available_models:
+            raise ValueError(f"Invalid model. Expected one of {available_models}")
+
+    @property
+    def model_name(self) -> str:
+        return self._model
 
 
 class ConversationSeeder(abc.ABC):
@@ -654,10 +684,6 @@ class Record(pydantic.BaseModel):
         return self.seed.question is not None and self.seed.main_topics is not None
 
 
-class Tracker(abc.ABC):
-    pass
-
-
 class Emitter(Generic[T, U]):
 
     def __init__(
@@ -797,8 +823,7 @@ class ChatStage(Stage[List[Record], List[Record]]):
                     student_reply: Message = self._student.query(
                         s.chat_history,
                         student_type=s.student_type,
-                        main_topics=s.seed.main_topics,
-                        chat_history=str(s.chat_history)
+                        main_topics=s.seed.main_topics
                     )
                 except LLMProcessingFailure as e:
                     s.failure = True
@@ -946,20 +971,26 @@ class StringSource(DataSource[str]):
 if __name__ == "__main__":
     strsource: DataSource[str] = StringSource(["hello world", "this is SocraticBench"])
 
-    pipeline = (
-        SocraticBench.from_data(strsource)
-        .apply(Tokenize())  # str → list[str]
-        .apply(Count())  # list[str] → int
-    )
-    items, t = pipeline.run()
+    client = Client()
+    llm = OpenAILLM("gpt-4o-mini", client)
+    llm.healthcheck()
 
-    bench = SocraticBench.from_data(strsource)  # type: SocraticBench[str]
-    batched = bench.batch()
-    flattened = batched.flatten()
-    out, t = flattened.run()
+    student = StudentAgent(llm)
+    teacher = TeacherAgent(llm)
+    judge = JudgeAgent(llm)
+    seeder = ContentSeeder(llm)
+
+    bench = SocraticBench.from_data(PrincetonChapters(Record, 2, 100))  # type: SocraticBench[Record]
+    seeded = bench.apply(SeedStage(seeder))
+    batched = seeded.batch()
+    chatted = batched.apply(ChatStage(student, teacher))
+    flattened = chatted.flatten()
+    evaluated = flattened.apply(EvaluationStage(judge))
+    out, t = evaluated.run()
     # b2 = bench.apply(Tokenize())
     # b3 = b2.apply(Count())
     print(out)
+    print(t)
 
     # API - pipeline
     # s = SocraticBench.default()
