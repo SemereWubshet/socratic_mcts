@@ -161,8 +161,11 @@ class ContentSeeder(ConversationSeeder):
 
 class Student(abc.ABC):
 
+    def __init__(self, llm: LLM):
+        self._llm = llm
+
     @abc.abstractmethod
-    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
+    def query(self, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Message:
         ...
 
     @abc.abstractmethod
@@ -173,18 +176,18 @@ class Student(abc.ABC):
     def message_prompt(self) -> str:
         ...
 
-    def llm(self) -> Optional[str]:
-        return None  # TODO: maybe inner access to llm (for GPU unloading...)
-
     @abc.abstractmethod
     def student_types(self) -> Tuple[str]:
         ...
 
+    def llm(self) -> LLM:
+        return self._llm
 
-class StudentX(Student):  # TODO: better naming!
+
+class StudentAgent(Student):
 
     def __init__(self, llm: LLM, max_trials: int = 10):
-        self._llm = llm
+        super().__init__(llm)
         self._max_trials = max_trials
 
     def system_prompt(self) -> str:
@@ -287,9 +290,9 @@ class StudentX(Student):  # TODO: better naming!
             "independent critical thinking skills and rely heavily on guidance or structure.",
         )
 
-    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
+    def query(self, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Message:
         system_prompt = self.system_prompt().format(**kwargs)
-        source_content = self.message_prompt().format(**kwargs)
+        source_content = self.message_prompt().format(chat_history=str(chat_history), **kwargs)
 
         trials = 0
         answer = ""
@@ -318,18 +321,11 @@ class StudentX(Student):  # TODO: better naming!
             f"Failed getting LLM to output correct for \n\n\n{source_content}\n\n\noutput: {answer}"
         )
 
-    def llm(self) -> Optional[str]:
-        return self._llm.model_name
-
 
 class Teacher(abc.ABC):
 
     def __init__(self, llm: LLM):
         self._llm = llm
-
-    @abc.abstractmethod
-    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
-        ...
 
     @abc.abstractmethod
     def system_prompt(self) -> str:
@@ -339,14 +335,15 @@ class Teacher(abc.ABC):
     def message_prompt(self) -> str:
         ...
 
-    def llm(self) -> Optional[str]:
-        return None  # TODO: maybe inner access to llm (for GPU unloading...)
+    @abc.abstractmethod
+    def query(self, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Message:
+        ...
+
+    def llm(self) -> LLM:
+        return self._llm
 
 
-class TeacherX(Teacher):
-
-    def query(self, message: Message, **kwargs: Dict[str, str]) -> Message:
-        pass
+class TeacherAgent(Teacher):
 
     def system_prompt(self) -> str:
         return (
@@ -389,8 +386,11 @@ class TeacherX(Teacher):
     def message_prompt(self) -> str:
         return "# Chat history\n{chat_history}\n\nOUTPUT: "
 
-    def llm(self) -> Optional[str]:
-        return super().llm()
+    def query(self, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Message:
+        return self._llm.query([
+            {"role": "system", "content": self.system_prompt().format(**kwargs)},
+            {"role": "user", "content": self.message_prompt().format(chat_history=str(chat_history), **kwargs)}
+        ])
 
 
 class Metadata(pydantic.BaseModel):
@@ -426,6 +426,9 @@ class ChatHistory(pydantic.RootModel):
     def __len__(self) -> int:
         return len(self.root)
 
+    def has_finished(self) -> bool:
+        return self.root[-1].end
+
 
 class Record(pydantic.BaseModel):
     metadata: Metadata = Metadata()
@@ -435,6 +438,12 @@ class Record(pydantic.BaseModel):
     chat_history: Optional[ChatHistory] = None
     feedback: Optional[str] = None
     assessment: Optional[bool] = None
+
+    failure: bool = False
+    failure_reason: Optional[str] = None
+
+    def has_seed(self) -> bool:
+        return self.seed.question is not None and self.seed.main_topics is not None
 
 
 class Tracker(abc.ABC):
@@ -460,9 +469,10 @@ class Emitter(Generic[T, U]):
     def emit(self, sample: T) -> None:
         if self._stage and self._next_emitter:
             self._stage.process(sample, self._next_emitter)
+        self._stage.cleanup(self._next_emitter)
 
-    def add(self, name: str) -> None:
-        self._tracker[name] = self._tracker.get(name, 0) + 1
+    def increment(self, name: str, value: int = 1) -> None:
+        self._tracker[name] = self._tracker.get(name, 0) + value
 
 
 class Stage(Generic[T, U], abc.ABC):
@@ -521,35 +531,39 @@ class SeedStage(Stage[str, Record]):
     def process(self, sample: str, emitter: Emitter[Record]) -> None:
         interaction_type = random.choice(self._seeder.interaction_types())
 
-        emitter.add("seed.in")
-
-        question, topics = None, None
-        try:
-            question, topics = self._seeder.gen_seed(sample, **interaction_type)
-        except LLMProcessingFailure:
-            emitter.add("seed.failure")
+        emitter.increment("seed.in")
 
         record = Record(id=self._id)
         record.metadata.seed_llm = self._seeder.seed_llm()
         record.seed.interaction_type = interaction_type["interaction_type"]
+        record.seed.source_content = sample
+
+        question, topics = None, None
+        try:
+            question, topics = self._seeder.gen_seed(sample, **interaction_type)
+        except LLMProcessingFailure as e:
+            emitter.increment("seed.failure")
+            record.failure = True
+            record.failure_reason = f"failed_seed / {repr(e)}"
+
         record.seed.question = question
         record.seed.main_topics = topics
-        record.seed.source_content = sample
+
         emitter.emit(record)
 
         self._id += 1
-        emitter.add("seed.out")
+        emitter.increment("seed.out")
 
 
 class ChatStage(Stage[List[Record], List[Record]]):
 
-    def __init__(self, student: Student, teacher: Agent, max_interactions: int = 16):
+    def __init__(self, student: Student, teacher: Teacher, max_interactions: int = 16):
         self._student = student
         self._teacher = teacher
         self._max_interactions = max_interactions
 
     def process(self, sample: List[Record], emitter: Emitter[List[Record]]) -> None:
-        for s in filter(lambda _s: s.seed.question is not None, sample):
+        for s in filter(lambda _s: _s.has_seed(), sample):
             s: Record
             chat_history = ChatHistory(root=[Message(role="Student", content=s.seed.question, end=False)])
             s.chat_history = chat_history
@@ -557,36 +571,46 @@ class ChatStage(Stage[List[Record], List[Record]]):
             s.metadata.student_llm = self._student.llm()
             s.metadata.teacher_llm = self._teacher.llm()
             s.student_type = random.choice(self._student.student_types())
-            emitter.add("chat_stage.eligible")
+            emitter.increment("chat_stage.eligible")
 
         for i in range(self._max_interactions):
-            for s in filter(lambda _s: _s.seed.question is not None and not _s.chat_history.root[-1].end, sample):
-                student_message = s.chat_history.root[-1]
+            for s in filter(lambda _s: not _s.failure and not _s.chat_history.has_finished(), sample):
                 try:
-                    teacher_reply: Message = self._teacher.query(student_message)
-                except LLMProcessingFailure:
-                    # TODO: whoops
-                    #       1. manage the failure loop
-                    #       2. add a counter somewhere
+                    teacher_reply: Message = self._teacher.query(s.chat_history)
+                except LLMProcessingFailure as e:
+                    s.failure = True
+                    s.failure_reason = f"failed_teacher / {repr(e)}"
+                    emitter.increment("chat_stage.failure")
                     continue
                 s.chat_history.root.append(teacher_reply)
 
-            for s in filter(lambda _s: _s.seed.question is not None and not _s.chat_history.root[-1].end, sample):
-                teacher_message = s.chat_history.root[-1]
-
+            for s in filter(lambda _s: not _s.failure and not _s.chat_history.has_finished(), sample):
                 try:
                     student_reply: Message = self._student.query(
-                        teacher_message,
+                        s.chat_history,
                         student_type=s.student_type,
                         main_topics=s.seed.main_topics,
                         chat_history=str(s.chat_history)
                     )
-                except LLMProcessingFailure:
-                    # TODO: whoops
+                except LLMProcessingFailure as e:
+                    s.failure = True
+                    s.failure_reason = f"failed_student / {repr(e)}"
+                    emitter.increment("chat_stage.failure")
                     continue
+
                 s.chat_history.root.append(student_reply)
 
+        emitter.increment("chat_stage.success", len(list(filter(lambda _s: not _s.failure, sample))))
+
         emitter.emit(sample)
+
+class EvaluationStage(Stage[Record, Record]):
+
+    def __init__(self):
+        ...
+
+    def process(self, sample: T, emitter: Emitter[U]) -> None:
+        pass
 
 
 class BufferStage(Stage[T, List[T]]):
@@ -600,6 +624,13 @@ class BufferStage(Stage[T, List[T]]):
     def cleanup(self, emitter: Emitter[List[T]]) -> None:
         emitter.emit(self._buffer)
         self._buffer.clear()
+
+
+class FlattenStage(Stage[List[T], T]):
+
+    def process(self, sample: List[T], emitter: Emitter[T]) -> None:
+        for item in sample:
+            emitter.emit(item)
 
 
 # class GenSeed()
@@ -637,9 +668,13 @@ class SocraticBench(Generic[T]):
         last_step = PipelineStep(self._last_step, stage)
         return SocraticBench(self._source, last_step)
 
-    def batch(self, stage: Stage[List[T], U]) -> 'SocraticBench[U]':
+    def batch(self: 'SocraticBench[T]') -> 'SocraticBench[List[T]]':
         buffered: BufferStage[T] = BufferStage()
-        return self.apply(buffered).apply(stage)
+        return self.apply(buffered)
+
+    def flatten(self: 'SocraticBench[List[U]]') -> 'SocraticBench[U]':
+        flattened: FlattenStage[List[U], U] = FlattenStage()
+        return self.apply(flattened)
 
     def run(self) -> Tuple[List[T], Tracker]:
         tracker: Dict[str, int] = {}
@@ -689,13 +724,13 @@ if __name__ == "__main__":
     )
     items, t = pipeline.run()
 
-    bench = (
-        SocraticBench.from_data(strsource)  # type: SocraticBench[str]
-        .batch()
-    )
+    bench = SocraticBench.from_data(strsource)  # type: SocraticBench[str]
+    batched = bench.batch()
+    flattened = batched.flatten()
+    out, t = flattened.run()
     # b2 = bench.apply(Tokenize())
     # b3 = b2.apply(Count())
-    print(items)
+    print(out)
 
     # API - pipeline
     # s = SocraticBench.default()
