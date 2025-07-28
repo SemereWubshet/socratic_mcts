@@ -257,7 +257,7 @@ class Qwen(LLM):
         self.model = None
         self.tokenizer = None
 
-    def query(self, messages: List[Dict[str, str]], temperature: float = 0.15) -> str:
+    def query(self, messages: List[Dict[str, str]], temperature: float = 0.9) -> str:
         if getattr(self, "model", None) is None or self.tokenizer is None:
             self.load()
 
@@ -329,7 +329,8 @@ def rollout(
         policy_path: pathlib.Path,
         output_path: pathlib.Path,
         ollama_client: str,
-        max_interactions: int
+        max_interactions: int,
+        num_conversations: int = 128
 ) -> None:
     student_llm = OllamaAgent(model="mistral-small3.1:24b", client=Client(ollama_client))
     seed_dataset = SeedDataset.model_validate_json(pathlib.Path(dataset_path).read_text())
@@ -337,7 +338,11 @@ def rollout(
     model = Qwen(base_model=str(policy_path))
 
     interactions_dataset = gen_teacher_student_interactions(
-        seed_dataset, student_llm, SimpleTeacher(model), max_interactions=max_interactions
+        seed_dataset,
+        student_llm,
+        SimpleTeacher(model),
+        max_interactions=max_interactions,
+        num_conversations=num_conversations
     )
     output_path.write_text(interactions_dataset.model_dump_json(indent=4))
 
@@ -470,20 +475,29 @@ def prepare_for_dpo(
         v4 = float(action_value_fn(t + cl4))
 
         evaluations = [(cl1, v1), (cl2, v2), (cl3, v3), (cl4, v4)]
-
-        dataset["prompt"].append(t)
-        dataset["evaluations"].append(evaluations)
-
         ordered = sorted(evaluations, key=lambda e: e[1])
-
         chosen, v_chosen = ordered[-1]
         rejected, v_rejected = ordered[0]
 
-        dataset["chosen"].append(chosen)
-        dataset["rejected"].append(rejected)
+        accepted: bool = v_chosen - v_rejected > 0.2
 
-        vs_chosen.append(v_chosen)
-        vs_rejected.append(v_rejected)
+        dataset["evaluations"].append(
+            {
+                "prompt": t,
+                "eval": ordered,
+                "chosen": chosen,
+                "rejected": rejected,
+                "accepted": accepted
+            }
+        )
+
+        if accepted:
+            dataset["prompt"].append(t)
+            dataset["chosen"].append(chosen)
+            dataset["rejected"].append(rejected)
+
+            vs_chosen.append(v_chosen)
+            vs_rejected.append(v_rejected)
 
     action_value_fn.unload()
 
@@ -521,8 +535,8 @@ def policy_train(
     training_args = DPOConfig(
         loss_type="robust",
         label_smoothing=0.1,
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=1,
+        per_device_train_batch_size=8,
+        gradient_accumulation_steps=2,
         warmup_ratio=0.1,
         num_train_epochs=1,
         max_length=1024,
@@ -532,7 +546,7 @@ def policy_train(
         optim="adamw_torch",
         output_dir=checkpoints_dir,
         overwrite_output_dir=True,
-        beta=0.15,
+        beta=0.1,
         learning_rate=1e-6,
         max_prompt_length=128,
     )
@@ -655,6 +669,9 @@ if __name__ == "__main__":
     value_checkpoints = train_dir / "value_checkpoints"
     init_q_path = train_dir / "init_q"
     seeds_path = train_dir / "seeds.json"
+    dpo_dataset = train_dir / "dpo_dataset.json"
+    policy_model_dir = train_dir / "policy_fn"
+    stats_path = train_dir / "stats.json"
 
     if not stf_pretrained.exists():
         print(f" -------------------- ------------------ starting STF -------------------- ------------------")
@@ -679,28 +696,24 @@ if __name__ == "__main__":
         )
         seeds_path.write_text(seed_dataset.model_dump_json(indent=4))
 
+    if stats_path.exists():
+        stats = json.loads(stats_path.read_text())
+    else:
+        stats: Dict[str, Any] = defaultdict(None)
+
     for i in range(args.num_iterations):
         train_it_dir = train_dir / f"iteration_{i}"
         train_it_dir.mkdir(exist_ok=True)
 
-        stats_path = train_it_dir / "stats.json"
         interactions_path = train_it_dir / "interactions.json"
         evaluations_path = train_it_dir / "evaluations.json"
         action_vfn_model_dir = train_it_dir / "action_value_fn"
-        dpo_dataset = train_it_dir / "dpo_dataset.json"
-        policy_model_dir = train_it_dir / "policy_fn"
 
         previous_iteration = train_dir / f"iteration_{i - 1}"
-        current_policy_path = previous_iteration / "policy_fn" if i > 0 else stf_pretrained
         current_vf_path = previous_iteration / "action_value_fn" if i > 0 else init_q_path
 
         if policy_model_dir.exists():
             continue
-
-        if stats_path.exists():
-            stats = json.loads(stats_path.read_text())
-        else:
-            stats: Dict[str, Any] = {"it": i}
 
         print(f" -------------------- ------------------ starting it {i} -------------------- ------------------")
 
@@ -713,7 +726,6 @@ if __name__ == "__main__":
         print(f"dpo_dataset={dpo_dataset}")
         print(f"policy_model_dir={policy_model_dir}")
         print(f"previous_iteration={previous_iteration}")
-        print(f"current_policy_path={current_policy_path}")
         print(f"current_vf_path={current_vf_path}")
 
         if not interactions_path.exists():
@@ -721,10 +733,11 @@ if __name__ == "__main__":
             print("#### Rolling out policy")
             rollout(
                 seeds_path,
-                current_policy_path,
+                stf_pretrained,
                 interactions_path,
                 args.ollama_client,
-                args.max_interactions
+                args.max_interactions,
+                num_conversations=128
             )
 
         if not evaluations_path.exists():
@@ -776,40 +789,75 @@ if __name__ == "__main__":
                 stats["vf_training"]["train"].append(d)
                 stats_path.write_text(json.dumps(stats))
 
-        if not dpo_dataset.exists():
+                print()
+                print(stats)
+                print()
+
+    if not dpo_dataset.exists():
+        print()
+        print("#### Preparing for DPO training")
+
+        interactions_path = train_dir / "dpo_interactions.json"
+        evaluations_path = train_dir / "dpo_evaluations.json"
+
+        if not interactions_path.exists():
             print()
-            print("#### Preparing for DPO training")
-
-            print(f"evaluations_path={evaluations_path}")
-            print(f"action_vfn_model_dir={action_vfn_model_dir}")
-            print(f"current_policy_path={current_policy_path}")
-            print(f"dpo_dataset={dpo_dataset}")
-
-            stats["dpo"] = prepare_for_dpo(
-                evaluations_path,
-                action_vfn_model_dir,
-                current_policy_path,
-                dpo_dataset
+            print("#### Rolling out policy")
+            rollout(
+                seeds_path,
+                stf_pretrained,
+                interactions_path,
+                args.ollama_client,
+                args.max_interactions,
+                num_conversations=600
             )
+
+        if not evaluations_path.exists():
+            print()
+            print("#### Policy evaluation")
+            interactions_dataset = InteractionDataset.model_validate_json(interactions_path.read_text())
+            evaluations_dataset = evaluate(interactions_dataset, judge, max_interactions=args.max_interactions)
+            evaluations_path.write_text(evaluations_dataset.model_dump_json(indent=4))
+            judge.unload()
+
+            print()
+            print(f"Avg. perf.: {evaluations_dataset.avg_performance()}")
+            print()
+            stats["dpo_avg_perf"] = evaluations_dataset.avg_performance()
             stats_path.write_text(json.dumps(stats))
 
-        print()
-        print("#### Policy training")
+        action_vfn_model_dir = train_dir / f"iteration_{args.num_iterations - 1}" / "action_value_fn"
 
+        print(f"interactions_path={interactions_path}")
+        print(f"action_vfn_model_dir={action_vfn_model_dir}")
+        print(f"stf_pretrained={stf_pretrained}")
         print(f"dpo_dataset={dpo_dataset}")
-        print(f"current_policy_path={current_policy_path}")
-        print(f"policy_checkpoints={policy_checkpoints}")
-        print(f"policy_model_dir={policy_model_dir}")
 
-        d = policy_train(
-            dpo_dataset,
-            current_policy_path,
-            policy_checkpoints,
-            policy_model_dir
+        stats["dpo"] = prepare_for_dpo(
+            evaluations_path,
+            action_vfn_model_dir,
+            stf_pretrained,
+            dpo_dataset
         )
-
-        stats["policy_training"] = d
-
-        print(stats)
-
         stats_path.write_text(json.dumps(stats))
+
+    print()
+    print("#### Policy training")
+
+    print(f"dpo_dataset={dpo_dataset}")
+    print(f"stf_pretrained={stf_pretrained}")
+    print(f"policy_checkpoints={policy_checkpoints}")
+    print(f"policy_model_dir={policy_model_dir}")
+
+    d = policy_train(
+        dpo_dataset,
+        stf_pretrained,
+        policy_checkpoints,
+        policy_model_dir
+    )
+
+    stats["policy_training"] = d
+
+    print(stats)
+
+    stats_path.write_text(json.dumps(stats))

@@ -76,17 +76,18 @@ def gen_teacher_student_interactions(
         seeds: SeedDataset,
         student_llm: LLM,
         teacher: Teacher,
-        max_interactions: int = 3
+        max_interactions: int = 3,
+        num_conversations: int = 128
 ) -> InteractionDataset:
     interactions: List[Interaction] = []
     students: List[Student] = []
     ended: List[bool] = []
 
-    total_possible_queries = 2 * len(seeds.root) * max_interactions
+    total_possible_queries = num_conversations * max_interactions
     pbar = tqdm(total=total_possible_queries, desc="Simulating dialogs", unit="query")
 
     # Prepare initial state
-    for _ in range(128):
+    for _ in range(num_conversations):
         stype = random.choice(Student.TYPES)
         seed = random.choice(seeds.root)
         student = Student(student_llm, seed.main_topics, stype)
