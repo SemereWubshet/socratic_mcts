@@ -37,6 +37,9 @@ class LLM(abc.ABC):
 
 class ConversationSeeder(abc.ABC):
 
+    def __init__(self, llm: LLM):
+        self._llm = llm
+
     @abc.abstractmethod
     def gen_seed(self, source_content: str, **kwargs: Dict[str, str]) -> Tuple[str, str]:
         ...
@@ -49,8 +52,8 @@ class ConversationSeeder(abc.ABC):
     def interaction_types(self) -> Tuple[Dict[str, str]]:
         ...
 
-    def seed_llm(self) -> Optional[str]:
-        return None
+    def seed_llm(self) -> LLM:
+        return self._llm
 
 
 class ContentSeeder(ConversationSeeder):
@@ -61,7 +64,7 @@ class ContentSeeder(ConversationSeeder):
             llm: The language model used for seed generation.
             max_trials: Number of attempts to retry on malformed LLM output.
         """
-        self._llm = llm
+        super().__init__(llm)
         self._max_trials = max_trials
 
     def base_prompt(self) -> str:
@@ -154,9 +157,6 @@ class ContentSeeder(ConversationSeeder):
         raise LLMProcessingFailure(
             f"Failed getting LLM to output correct for \n\n\n{source_content}\n\n\noutput: {output}"
         )
-
-    def seed_llm(self) -> Optional[str]:
-        return self._llm.model_name
 
 
 class Student(abc.ABC):
@@ -402,10 +402,6 @@ class Judge(abc.ABC):
         self._llm = llm
 
     @abc.abstractmethod
-    def query(self, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Message:
-        ...
-
-    @abc.abstractmethod
     def system_prompt(self) -> str:
         ...
 
@@ -414,11 +410,195 @@ class Judge(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def student_types(self) -> Tuple[str]:
+    def evaluate(self, seed: Seed, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Tuple[str, Optional[bool]]:
         ...
 
     def llm(self) -> LLM:
         return self._llm
+
+
+class JudgeAgent(Judge):
+
+    def __init__(self, llm: LLM):
+        super().__init__(llm)
+
+    def system_prompt(self) -> str:
+        return (
+            "# General Instructions\n"
+            "You are a judge evaluating the quality of Socratic interactions between a teacher and a student.You have "
+            "access to the complete conversation history and a list of main topics the teacher must cover to "
+            "thoroughly explore the subject.The opening question is the student’s initial inquiry that frames the "
+            "dialogue. The teacher’s role is to help the student examine it rigorously without providing the answer "
+            "directly. Your task is to assess whether the teacher, using only Socratic methods, guided the student "
+            "toward a deep understanding of the main topics and their opening question.\n"
+            "\n"
+            "# Evaluation Criteria\n"
+            "\n"
+            "Your assessment must rigorously consider the following components:\n"
+            "\n"
+            "1. Topic Coverage Assessment\n"
+            "-[] ** All Main Topics Addressed **: Every topic listed must be explored in depth through questioning. "
+            "A topic is considered addressed only if the teacher helped the student examine it thoughtfully — not "
+            "merely by naming or hinting at it. \n"
+            "-[] ** Resolution of the Opening Question **: Confirm that the student reached a thoughtful and "
+            "self-generated understanding of their initial question.This understanding should reflect refined "
+            "assumptions, a clarified framing, or a reasoned conclusion — not merely a surface-level response.\n"
+            "\n"
+            "2. Socratic Adherence Evaluation\n"
+            "-[] ** Avoided Direct Answers **: Confirm that the teacher never provided the answer in an explicit or "
+            "declarative form.\n"
+            "-[] ** Avoided Premature Resolution of Opening Question **:  Ensure the teacher did not imply, suggest, "
+            "or steer the student toward a particular conclusion before the student explored the question on their "
+            "own terms.\n"
+            "-[] ** Use of Open-Ended Questions **: Verify that the teacher primarily used open-ended, "
+            "thought-provoking questions to challenge the student’s thinking.\n"
+            "-[] ** Engagement and Adaptation **: Evaluate whether the teacher actively engaged with the student’s "
+            "responses and adapted their questioning based on student input.\n"
+            "-[] ** Indirect Guidance **: Ensure the teacher provided guidance through questioning\n"
+            "-[] ** Focused and Iterative Progression **: Confirm that the conversation stayed focused on the "
+            "student’s initial query and progressed in manageable steps without deviating significantly.\n"
+            "[] ** Respectful of Student Input **: Check that the teacher never ignored or dismissed the student’s "
+            "input, consistently encouraging deeper exploration. \"Respect\" includes epistemic respect — i.e., "
+            "pushing the student’s ideas further because they matter — not just politeness.\n"
+            "-[] ** Clear Guidance **: Ensure that the teacher’s questions were clearly worded, structurally simple, "
+            "and logically coherent — phrasing should support understanding without causing confusion.\n"
+            "\n"
+            "3. Student Understanding Analysis\n"
+            "-[] ** Indicators of Understanding **: Look for signs that the student demonstrated substantial "
+            "or meaningful understanding over time — including reasoning, reflection, synthesis, or revised "
+            "assumptions.\n"
+            "-[] ** Student Understanding of Opening Question **: Verify that the student reached a sound "
+            "understanding of their initial question, including checking their assumptions.This may involve "
+            "refining or revising the question, not just answering it.\n"
+            "-[] ** Handling Repetition or Stagnation **: If the student repeated themselves or appeared disengaged, "
+            "check if the teacher employed strategies such as rephrasing, meta-level questions, changing angles, "
+            "or offering simpler questions to promote progress.\n"
+            "\n"
+            "⚠️ ** Important: ** A teacher is successful only if every checkbox in all three categories is satisfied. "
+            "Missing even one results in failure to comply with the Socratic method.\n"
+            "\n"
+            "# Output Format\n"
+            "\n"
+            "At the end, output a brief **verdict summary ** followed by the separator: \n"
+            "\n"
+            "- `[ASSESSMENT] true` — if the teacher succeeded for all checkboxes in the three sections\n"
+            "- `[ASSESSMENT] false` — if the teacher failed in ** any ** checkbox in any of the three sections\n"
+            "\n"
+            "Do ** not ** include any closing remarks after the separator.\n"
+            "\n"
+            "---\n"
+            "\n"
+            "# Example\n"
+            "\n"
+            "# Main Topics\n"
+            "- Difference between fairness and equality.\n"
+            "- Situational contexts where fairness and equality diverge.\n"
+            "- Philosophical or ethical reasoning behind fairness as a moral value.\n"
+            "\n"
+            "## Chat History\n"
+            "Student: Is treating everyone equally the same as being fair?\n"
+            "Teacher: Interesting question.Can you think of a time when someone was treated equally but it didn’t feel "
+            "fair?\n"
+            "Student: Yeah, like in school, if everyone gets the same test time but some students have learning "
+            "disabilities.\n"
+            "Teacher: So in that case, equal treatment might disadvantage some students?\n"
+            "Student: Right.It seems unfair to expect the same speed from everyone.\n"
+            "Teacher: What do you think fairness would require in that situation?\n"
+            "Student: Maybe giving more time to those who need it.\n"
+            "eacher: Wouldn’t that be unequal though?\n"
+            "Student: I guess, yeah.\n"
+            "Teacher: So does fairness always mean equality?\n"
+            "Student: Maybe not.Fairness might mean giving people what they need instead of the same thing.\n"
+            "Teacher: That’s an interesting distinction.Can you think of a situation where equal treatment would be "
+            "fair?\n"
+            "Student: Like...everyone getting the same chance to speak in a group?\n"
+            "Teacher: So in some cases, fairness and equality line up — but in others, they don’t.What does that tell "
+            "us about how we should think about fairness?\n"
+            "\n"
+            "# Evaluation\n"
+            "\n"
+            "## Checklist\n"
+            "\n"
+            "1. Topic Coverage Assessment\n"
+            "-[✗] ** All Main Topics Addressed: ** While the dialogue introduced the distinction between fairness "
+            "and equality, it lacked depth.The teacher could have asked, “How would utilitarianism or deontology "
+            "explain fairness in this context?” to deepen the discussion.\n"
+            "[✗] ** Resolution of the Opening Question: ** The discussion didn’t lead to a refined understanding or "
+            "reframing of the initial question.Specific points where the student’s assumptions could be challenged "
+            "were missed, such as during the discussion on need.\n"
+            "\n"
+            "2. Socratic Adherence Evaluation\n"
+            "-[✓] **Avoided Direct Answers:** The teacher successfully avoided giving direct answers, promoting "
+            "independent exploration by the student.\n"
+            "-[✓] **Avoided Premature Resolution of Opening Question:** The teacher allowed the student to consider "
+            "different scenarios without pushing toward a specific conclusion.\n"
+            "-[✓] **Use of Open-Ended Questions:** Open-ended questions were deployed effectively, but further "
+            "questions like, “How do different philosophical theories perceive fairness and equality?” could enhance "
+            "understanding.\n"
+            "[✗] **Engagement and Adaptation:** Although there was engagement, more adaptation to the student’s "
+            "responses was needed.When the student mentioned need, the teacher could have asked, “How do we define "
+            "need in this scenario?” to provoke deeper analysis.\n"
+            "-[✗] **Indirect Guidance:** Guided exploration was limited to situational examples.Integrating broader "
+            "principles or theories of justice would enrich this aspect.\n"
+            "-[✓] **Focused and Iterative Progression:** The conversation stayed focused and progressed logically "
+            "but missed iterative depth by not revisiting initial assumptions with new insights.\n"
+            "-[✓] **Respectful of Student Input:** The teacher consistently respected and validated the "
+            "student’s contributions.\n"
+            "-[✗] **Clear Guidance:** Although the questions were clear, they needed more probing, especially "
+            "in defining and exploring key terms like “fairness.” For example, asking, “What characteristics define "
+            "fairness in this context?” would add depth.\n"
+            "\n"
+            "3. Student Understanding Analysis\n"
+            "-[✗] **Indicators of Understanding:** The student understood that fairness and equality could diverge "
+            "but didn’t dive deeper into reasoning.Asking, “Why might these concepts lead to different outcomes?” "
+            "could foster this.\n"
+            "-[✗] **Student Understanding of Opening Question:** The student did not substantially refine or "
+            "deepen their understanding of the initial question.Opportunities to reframe or challenge assumptions "
+            "were missed.\n"
+            "-[✗] **Handling Repetition or Stagnation:** Repetitive elements were not addressed through rephrasing or "
+            "introducing new angles.Asking, “Can you think of historical examples where fairness was prioritized over "
+            "equality?” might help.\n"
+            "\n"
+            "# Verdict Summary\n"
+            "he conversation maintained focus and encouraged student input but lacked depth in philosophical "
+            "exploration and needed clearer definitions of key terms. Opportunities for deeper reasoning were missed, "
+            "leading to an incomplete understanding of the opening question.\n"
+            "\n"
+            "[ASSESSMENT] false"
+        )
+
+    def message_prompt(self) -> str:
+        return "# Main Topics\n{main_topics}\n\n# Chat history\n{chat_history}\n\nEVALUATION: "
+
+    def evaluate(self, seed: Seed, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Tuple[str, Optional[bool]]:
+        assessment = self._llm.query([
+            {
+                "role": "system", "content": self.system_prompt().format(**kwargs)
+            },
+            {
+                "role": "user",
+                "content": self.message_prompt().format(
+                    main_topics=seed.main_topics,
+                    chat_history=str(chat_history),
+                    **kwargs
+                )
+            }
+        ])
+
+        if "[ASSESSMENT]" not in assessment:
+            return assessment, None
+
+        feedback, decision = assessment.rsplit("[ASSESSMENT]", 1)
+        feedback = feedback.strip()
+        decision = decision.strip().lower()
+
+        if not decision == "true" and not decision == "false":
+            return assessment, None
+
+        return feedback, decision == "true"
+
+    def llm(self) -> LLM:
+        return super().llm()
 
 
 class Metadata(pydantic.BaseModel):
@@ -562,7 +742,7 @@ class SeedStage(Stage[str, Record]):
         emitter.increment("seed.in")
 
         record = Record(id=self._id)
-        record.metadata.seed_llm = self._seeder.seed_llm()
+        record.metadata.seed_llm = self._seeder.seed_llm().model_name
         record.seed.interaction_type = interaction_type["interaction_type"]
         record.seed.source_content = sample
 
@@ -596,8 +776,8 @@ class ChatStage(Stage[List[Record], List[Record]]):
             chat_history = ChatHistory(root=[Message(role="Student", content=s.seed.question, end=False)])
             s.chat_history = chat_history
             s.metadata.max_interactions = self._max_interactions
-            s.metadata.student_llm = self._student.llm()
-            s.metadata.teacher_llm = self._teacher.llm()
+            s.metadata.student_llm = self._student.llm().model_name
+            s.metadata.teacher_llm = self._teacher.llm().model_name
             s.student_type = random.choice(self._student.student_types())
             emitter.increment("chat_stage.eligible")
 
@@ -635,11 +815,31 @@ class ChatStage(Stage[List[Record], List[Record]]):
 
 class EvaluationStage(Stage[Record, Record]):
 
-    def __init__(self):
-        ...
+    def __init__(self, judge: Judge):
+        self._judge = judge
 
-    def process(self, sample: T, emitter: Emitter[U]) -> None:
-        pass
+    def process(self, sample: Record, emitter: Emitter[Record]) -> None:
+        sample.metadata.judge_llm = self._judge.llm().model_name
+        emitter.increment("judge.in")
+        if not sample.failure and sample.has_seed() and sample.chat_history.has_finished():
+            reason, assessment = self._judge.evaluate(sample.seed, sample.chat_history)
+
+            if assessment:
+                emitter.increment("judge.accepted")
+            elif assessment is False:
+                emitter.increment("judge.rejected")
+            else:
+                emitter.increment("judge.failed_evaluation")
+
+            sample.feedback = reason
+            sample.assessment = assessment
+
+            if assessment is None:
+                sample.failure = True
+                sample.failure_reason = "failed_evaluation / failed parsing assessment"
+
+        emitter.emit(sample)
+        emitter.increment("judge.out")
 
 
 class BufferStage(Stage[T, List[T]]):
