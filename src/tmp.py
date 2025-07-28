@@ -313,9 +313,11 @@ class StudentAgent(Student):
             decision = match[0]
 
             if decision == "[END]":
-                return answer.replace("[END]", "").strip(), True
+                content, end = answer.replace("[END]", "").strip(), True
             else:
-                return answer.replace("[CONTINUE]", "").strip(), False
+                content, end = answer.replace("[CONTINUE]", "").strip(), False
+
+            return Message(role="Student", content=content, end=end)
 
         raise LLMProcessingFailure(
             f"Failed getting LLM to output correct for \n\n\n{source_content}\n\n\noutput: {answer}"
@@ -387,10 +389,36 @@ class TeacherAgent(Teacher):
         return "# Chat history\n{chat_history}\n\nOUTPUT: "
 
     def query(self, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Message:
-        return self._llm.query([
+        content = self._llm.query([
             {"role": "system", "content": self.system_prompt().format(**kwargs)},
             {"role": "user", "content": self.message_prompt().format(chat_history=str(chat_history), **kwargs)}
         ])
+
+        return Message(role="Teacher", content=content, end=False)
+
+
+class Judge(abc.ABC):
+    def __init__(self, llm: LLM):
+        self._llm = llm
+
+    @abc.abstractmethod
+    def query(self, chat_history: ChatHistory, **kwargs: Dict[str, str]) -> Message:
+        ...
+
+    @abc.abstractmethod
+    def system_prompt(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def message_prompt(self) -> str:
+        ...
+
+    @abc.abstractmethod
+    def student_types(self) -> Tuple[str]:
+        ...
+
+    def llm(self) -> LLM:
+        return self._llm
 
 
 class Metadata(pydantic.BaseModel):
@@ -603,6 +631,7 @@ class ChatStage(Stage[List[Record], List[Record]]):
         emitter.increment("chat_stage.success", len(list(filter(lambda _s: not _s.failure, sample))))
 
         emitter.emit(sample)
+
 
 class EvaluationStage(Stage[Record, Record]):
 
