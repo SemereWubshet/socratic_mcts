@@ -20,8 +20,9 @@ from schemas import SeedDataset, Seed, InteractionDataset, Interaction, ChatHist
 
 class Qwen(LLM):
 
-    def __init__(self, base_model: str, max_length: int = 1024):
+    def __init__(self, base_model: str, max_length: int = 1024, model_name: str = ""):
         self._base_model = base_model
+        self._model_name = model_name
         self.max_length = max_length
         self.model = None
         self.tokenizer = None
@@ -68,7 +69,7 @@ class Qwen(LLM):
 
     @property
     def model_name(self) -> str:
-        return f"Qwen3 ({self._base_model})"
+        return self._model_name
 
     def save(self, path: pathlib.Path) -> None:
         self.model.save_pretrained(path)
@@ -318,7 +319,8 @@ if __name__ == "__main__":
         # Socratic(resolve_llm(("ollama", "eurecom-ds/phi-3-mini-4k-socratic"), clients)),
         # Teacher(resolve_llm(("openai", "gpt-4o"), clients)),
         # Teacher(resolve_llm(("google", "models/learnlm-2.0-flash-experimental"), clients)),
-        SimpleTeacher(Qwen("/home/gatti/socratic-rl/trial-Z/train/policy_fn/"))
+        SimpleTeacher(Qwen("/home/gatti/socratic-rl/trial-Z/train/policy_fn/", model_name="Qwen-RL")),
+        SimpleTeacher(Qwen("/home/gatti/socratic-rl/trial-Z/train/stf/pretrained/", model_name="Qwen-STF"))
     ], desc="Teacher evaluation"):
         for max_interactions in tqdm([16, ], desc="Max interactions"):
             teacher_model = teacher.model_name()
