@@ -1,18 +1,96 @@
 import argparse
+import gc
 import os
 import pathlib
 import random
 import shutil
 from typing import List, Tuple, Dict, Union
 
+import torch
+import unsloth
 from datasets import DatasetDict, load_dataset
 from ollama import Client
 from openai import OpenAI
 from tqdm import tqdm
 
-from agents import StudentSeed, LLM, Student, Teacher, Judge, OpenAIAgent, OllamaAgent, Socratic
+from agents import StudentSeed, LLM, Student, Teacher, Judge, OpenAIAgent, OllamaAgent
 from schemas import SeedDataset, Seed, InteractionDataset, Interaction, ChatHistory, Message, InteractionMetadata, \
     EvaluationDataset, Evaluation, EvalMetadata
+
+
+class Qwen(LLM):
+
+    def __init__(self, base_model: str, max_length: int = 1024):
+        self._base_model = base_model
+        self.max_length = max_length
+        self.model = None
+        self.tokenizer = None
+
+    def query(self, messages: List[Dict[str, str]], temperature: float = 0.9) -> str:
+        if getattr(self, "model", None) is None or self.tokenizer is None:
+            self.load()
+
+        raw_prompt = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True, enable_thinking=False
+        )
+        inputs = self.tokenizer([raw_prompt], return_tensors="pt").to("cuda")
+        outputs = self.model.generate(
+            **inputs, max_new_tokens=128, do_sample=True, temperature=temperature
+        )
+        generation = outputs[0, len(inputs['input_ids'][0]):]
+        decoded = self.tokenizer.decode(generation, skip_special_tokens=True)
+        return decoded
+
+    def load(self, for_inference: bool = True) -> None:
+        self.model, self.tokenizer = unsloth.FastLanguageModel.from_pretrained(
+            model_name=self._base_model,
+            dtype=torch.bfloat16,
+            max_seq_length=self.max_length,
+            load_in_4bit=False,  # False for LoRA 16bit
+            load_in_8bit=False,
+        )
+
+        if for_inference:
+            self.model = unsloth.FastLanguageModel.for_inference(self.model)
+
+        # ✅ Patch apply_chat_template to default enable_thinking=False
+        if hasattr(self.tokenizer, "apply_chat_template"):
+            original_fn = self.tokenizer.apply_chat_template
+
+            def patched_apply_chat_template(conversation, **kwargs):
+                kwargs.setdefault("enable_thinking", False)
+                return original_fn(conversation, **kwargs)
+
+            self.tokenizer.apply_chat_template = patched_apply_chat_template
+
+    def healthcheck(self) -> None:
+        pass
+
+    @property
+    def model_name(self) -> str:
+        return f"Qwen3 ({self._base_model})"
+
+    def save(self, path: pathlib.Path) -> None:
+        self.model.save_pretrained(path)
+        self.tokenizer.save_pretrained(path)
+
+    def unload(self) -> None:
+        if getattr(self, "model", None) is not None:
+            del self.model
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
+class SimpleTeacher(Teacher):
+
+    def chat(self, chat_history: ChatHistory) -> str:
+        messages = [
+            {"role": "user" if h.role == "Student" else "assistant", "content": h.content} for h in chat_history.root
+        ]
+        return self._llm.query(messages)
+
+    def model_name(self) -> str:
+        return self._llm.model_name
 
 
 def resolve_llm(model: Tuple[str, str], clients: Dict[str, Union[Client, OpenAI]]) -> LLM:
@@ -234,14 +312,15 @@ if __name__ == "__main__":
             f.unlink()
 
     for teacher in tqdm([
-        Teacher(resolve_llm(("ollama", "mistral-small3.1:24b"), clients)),
-        Teacher(resolve_llm(("ollama", "llama3.3:70b"), clients)),
-        Teacher(resolve_llm(("ollama", "gemma3:27b"), clients)),
-        Socratic(resolve_llm(("ollama", "eurecom-ds/phi-3-mini-4k-socratic"), clients)),
-        Teacher(resolve_llm(("openai", "gpt-4o"), clients)),
-        Teacher(resolve_llm(("google", "models/learnlm-2.0-flash-experimental"), clients)),
+        # Teacher(resolve_llm(("ollama", "mistral-small3.1:24b"), clients)),
+        # Teacher(resolve_llm(("ollama", "llama3.3:70b"), clients)),
+        # Teacher(resolve_llm(("ollama", "gemma3:27b"), clients)),
+        # Socratic(resolve_llm(("ollama", "eurecom-ds/phi-3-mini-4k-socratic"), clients)),
+        # Teacher(resolve_llm(("openai", "gpt-4o"), clients)),
+        # Teacher(resolve_llm(("google", "models/learnlm-2.0-flash-experimental"), clients)),
+        SimpleTeacher(Qwen("/home/gatti/socratic-rl/trial-Z/train/policy_fn/"))
     ], desc="Teacher evaluation"):
-        for max_interactions in tqdm([2, 4, 8, 16], desc="Max interactions"):
+        for max_interactions in tqdm([16, ], desc="Max interactions"):
             teacher_model = teacher.model_name()
             teacher_model = teacher_model.split("/")[-1].replace(":", "_")
             interactions_path = output_dir / f"int_{max_interactions}_{teacher_model}.json"
