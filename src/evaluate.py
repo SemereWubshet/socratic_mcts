@@ -178,7 +178,7 @@ def gen_teacher_student_interactions(
         idx_map = []
         for idx, inter in enumerate(interactions):
             if not ended[idx]:
-                teacher_prompts.append(str(inter.chat_history))
+                teacher_prompts.append(inter.chat_history)
                 idx_map.append(idx)
 
         if not teacher_prompts:
@@ -199,10 +199,10 @@ def gen_teacher_student_interactions(
         idx_map = []
         for idx, inter in enumerate(interactions):
             if not ended[idx]:
-                student_prompts.append(str(inter.chat_history))
+                student_prompts.append(inter.chat_history)
                 idx_map.append(idx)
 
-        student_outputs = [students[idx].chat(p) for idx, p in zip(idx_map, student_prompts)]
+        student_outputs = [students[idx].chat(str(p)) for idx, p in zip(idx_map, student_prompts)]
         pbar.update(len(student_outputs))
         student_llm.unload()
 
