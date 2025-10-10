@@ -13,7 +13,7 @@ from ollama import Client
 from openai import OpenAI
 from tqdm import tqdm
 
-from agents import StudentSeed, LLM, Student, Teacher, Judge, OpenAIAgent, OllamaAgent
+from agents import StudentSeed, LLM, Student, Teacher, Judge, OpenAIAgent, OllamaAgent, NoThinkingAgent
 from schemas import SeedDataset, Seed, InteractionDataset, Interaction, ChatHistory, Message, InteractionMetadata, \
     EvaluationDataset, Evaluation, EvalMetadata
 
@@ -319,10 +319,10 @@ if __name__ == "__main__":
         # Socratic(resolve_llm(("ollama", "eurecom-ds/phi-3-mini-4k-socratic"), clients)),
         # Teacher(resolve_llm(("openai", "gpt-4o"), clients)),
         # Teacher(resolve_llm(("google", "models/learnlm-2.0-flash-experimental"), clients)),
-        SimpleTeacher(Qwen("/home/gatti/socratic-rl/trial-Z/train/policy_fn/", model_name="Qwen-RL")),
-        SimpleTeacher(Qwen("/home/gatti/socratic-rl/trial-Z/train/stf/pretrained/", model_name="Qwen-STF"))
+        Teacher(NoThinkingAgent("qwen3:8b", clients.get("ollama"), temperature=0.15, num_ctx=8192)),
+        SimpleTeacher(Qwen("/home/gatti/socratic-rl/trial-Z/train/stf/pretrained/", model_name="Qwen-STF")),
     ], desc="Teacher evaluation"):
-        for max_interactions in tqdm([16, ], desc="Max interactions"):
+        for max_interactions in tqdm([2, 4, 8, 16 ], desc="Max interactions"):
             teacher_model = teacher.model_name()
             teacher_model = teacher_model.split("/")[-1].replace(":", "_")
             interactions_path = output_dir / f"int_{max_interactions}_{teacher_model}.json"

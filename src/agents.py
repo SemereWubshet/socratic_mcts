@@ -92,6 +92,15 @@ class OllamaAgent(LLM):
         self._client.generate(self._model, keep_alive=0)
 
 
+class NoThinkingAgent(OllamaAgent):
+
+    def query(self, messages: List[Dict[str, str]]) -> str:
+        response = self._client.chat(model=self._model,
+                                     messages=messages,
+                                     think=False,
+                                     options=self._options)
+        return response["message"]["content"]
+
 class HasLLM(abc.ABC):
 
     @abc.abstractmethod

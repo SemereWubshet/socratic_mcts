@@ -93,6 +93,8 @@ if __name__ == "__main__":
 
     # Create DataFrame
     df = pd.DataFrame(all_data)
+    
+    print(df.to_string())
 
     unique_llms = df["llm"].unique()
     colors = Category10[max(3, len(unique_llms))]
